@@ -1,111 +1,167 @@
-use egg::*;
+mod engine;
 
-define_language! {
-    pub enum Math {
-        "+" = Add([Id; 2]),
-        "-" = Sub([Id; 2]),
-        "*" = Mul([Id; 2]),
-        "/" = Div([Id; 2]),
-        "^" = Pow([Id; 2]),
-        "sin" = Sin(Id),
-        "cos" = Cos(Id),
-        "tan" = Tan(Id),
-        "csc" = Csc(Id),
-        "sec" = Sec(Id),
-        "cot" = Cot(Id),
-        Num(i32),
-        Symbol(Symbol),
-    }
+use actix_cors::Cors;
+use actix_files as fs;
+use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use serde::{Deserialize, Serialize};
+use std::io::{self, Write};
+
+// ---------------------------------------------------------------------------
+//  API types
+// ---------------------------------------------------------------------------
+#[derive(Deserialize)]
+struct VerifyRequest {
+    lhs: String,
+    rhs: String,
 }
 
-fn rules() -> Vec<Rewrite<Math, ()>> {
-    vec![
-        // Addition simplifications
-        rewrite!("add-comm"; "(+ ?a ?b)" => "(+ ?b ?a)"),
-        rewrite!("add-assoc"; "(+ (+ ?a ?b) ?c)" => "(+ ?a (+ ?b ?c))"),
-        rewrite!("add-zero"; "(+ ?a 0)" => "?a"),
-        rewrite!("zero-add"; "(+ 0 ?a)" => "?a"),
-
-        // Subtraction simplifications
-        rewrite!("sub-zero"; "(- ?a 0)" => "?a"),
-        rewrite!("sub-self"; "(- ?a ?a)" => "0"),
-
-        // Multiplication simplifications
-        rewrite!("mul-comm"; "(* ?a ?b)" => "(* ?b ?a)"),
-        rewrite!("mul-assoc"; "(* (* ?a ?b) ?c)" => "(* ?a (* ?b ?c))"),
-        rewrite!("mul-zero"; "(* ?a 0)" => "0"),
-        rewrite!("zero-mul"; "(* 0 ?a)" => "0"),
-        rewrite!("mul-one"; "(* ?a 1)" => "?a"),
-        rewrite!("one-mul"; "(* 1 ?a)" => "?a"),
-
-        // Division simplifications
-        rewrite!("div-one"; "(/ ?a 1)" => "?a"),
-        rewrite!("div-self"; "(/ ?a ?a)" => "1" if is_not_zero("?a")),
-
-        // Powers
-        rewrite!("pow-one"; "(^ ?a 1)" => "?a"),
-        rewrite!("pow-zero"; "(^ ?a 0)" => "1" if is_not_zero("?a")),
-        rewrite!("pow-two"; "(^ ?a 2)" => "(* ?a ?a)"),
-
-        // Reciprocal identities
-        rewrite!("csc-def"; "(csc ?x)" <=> "(/ 1 (sin ?x))"),
-        rewrite!("sec-def"; "(sec ?x)" <=> "(/ 1 (cos ?x))"),
-        rewrite!("cot-def"; "(cot ?x)" <=> "(/ 1 (tan ?x))"),
-
-        // Quotient identities
-        rewrite!("tan-quot"; "(tan ?x)" <=> "(/ (sin ?x) (cos ?x))"),
-        rewrite!("cot-quot"; "(cot ?x)" <=> "(/ (cos ?x) (sin ?x))"),
-
-        // Pythagorean identities
-        rewrite!("pythagorean-1"; "(+ (^ (sin ?x) 2) (^ (cos ?x) 2))" <=> "1"),
-        rewrite!("pythagorean-1-alt1"; "(+ (* (sin ?x) (sin ?x)) (* (cos ?x) (cos ?x)))" <=> "1"),
-        rewrite!("pythagorean-1-sub1"; "(- 1 (^ (sin ?x) 2))" <=> "(^ (cos ?x) 2)"),
-        rewrite!("pythagorean-1-sub2"; "(- 1 (^ (cos ?x) 2))" <=> "(^ (sin ?x) 2)"),
-        
-        rewrite!("pythagorean-2"; "(+ 1 (^ (tan ?x) 2))" <=> "(^ (sec ?x) 2)"),
-        rewrite!("pythagorean-2-alt"; "(+ (^ (tan ?x) 2) 1)" <=> "(^ (sec ?x) 2)"),
-        
-        rewrite!("pythagorean-3"; "(+ 1 (^ (cot ?x) 2))" <=> "(^ (csc ?x) 2)"),
-        rewrite!("pythagorean-3-alt"; "(+ (^ (cot ?x) 2) 1)" <=> "(^ (csc ?x) 2)"),
-    ].concat()
+#[derive(Serialize)]
+#[allow(dead_code)]
+struct VerifyResponse {
+    verified: bool,
+    steps: Vec<String>,
+    step_count: usize,
+    error: Option<String>,
 }
 
-fn is_not_zero(vars: &str) -> impl Fn(&mut egraph::EGraph<Math, ()>, Id, &Subst) -> bool {
-    let vars: egg::Var = vars.parse().unwrap();
-    move |egraph, _, subst| {
-        !egraph[subst[vars]].nodes.iter().any(|n| matches!(n, Math::Num(0)))
-    }
+// ---------------------------------------------------------------------------
+//  API handler
+// ---------------------------------------------------------------------------
+async fn verify_handler(body: web::Json<VerifyRequest>) -> impl Responder {
+    let result = engine::verify(&body.lhs, &body.rhs);
+    HttpResponse::Ok().json(result)
 }
 
-fn verify_identity(start: &str, target: &str) {
-    let start_expr: RecExpr<Math> = start.parse().unwrap();
-    let target_expr: RecExpr<Math> = target.parse().unwrap();
+async fn health() -> impl Responder {
+    HttpResponse::Ok().body("ok")
+}
 
-    let mut runner = Runner::default()
-        .with_expr(&start_expr)
-        .with_expr(&target_expr)
-        .run(&rules());
-
-    // Explanation requires `.with_explanations_enabled()` on the egraph.
-    // Wait, by default explanation might not be enabled in old representations, let's enable it.
-    
-    let root1 = runner.roots[0];
-    let root2 = runner.roots[1];
-
-    if runner.egraph.find(root1) == runner.egraph.find(root2) {
-        println!("The identity is valid!");
-        let mut explanation = runner.egraph.explain_equivalence(&start_expr, &target_expr);
-        let s = explanation.get_flat_string();
-        println!("Steps to verify:");
-        println!("{}", s);
+// ---------------------------------------------------------------------------
+//  CLI helpers (kept for backwards-compat)
+// ---------------------------------------------------------------------------
+fn cli_verify(lhs: &str, rhs: &str) {
+    let result = engine::verify(lhs, rhs);
+    println!();
+    println!("═══════════════════════════════════════════════════════");
+    println!("  Verifying:  {}  =  {}", lhs, rhs);
+    println!("═══════════════════════════════════════════════════════");
+    if result.verified {
+        println!("  ✓ Identity VERIFIED");
+        println!();
+        println!(
+            "  Proof ({} step{}):",
+            result.step_count,
+            if result.step_count == 1 { "" } else { "s" }
+        );
+        println!("  ─────────────────────────────────────────────────");
+        for (i, step) in result.steps.iter().enumerate() {
+            println!("    {}. {}", i + 1, step);
+        }
     } else {
-        println!("Could not verify the identity within the limit.");
+        println!("  ✗ Could NOT verify the identity.");
+        if let Some(e) = &result.error {
+            println!("    Error: {}", e);
+        }
+    }
+    println!();
+}
+
+fn demo_identities() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("sin²x + cos²x = 1", "(+ (^ (sin x) 2) (^ (cos x) 2))", "1"),
+        ("tan²x + 1 = sec²x", "(+ (^ (tan x) 2) 1)", "(^ (sec x) 2)"),
+        ("cot²x + 1 = csc²x", "(+ (^ (cot x) 2) 1)", "(^ (csc x) 2)"),
+        ("tanx = sinx / cosx", "(tan x)", "(/ (sin x) (cos x))"),
+        ("cscx = 1 / sinx", "(csc x)", "(/ 1 (sin x))"),
+        ("sec²x - tan²x = 1", "(- (^ (sec x) 2) (^ (tan x) 2))", "1"),
+    ]
+}
+
+fn repl() {
+    println!();
+    println!("┌────────────────────────────────────────────────────────┐");
+    println!("│         Trigonometric Identity Verifier                │");
+    println!("│  S-expression syntax: (+ (^ (sin x) 2) (^ (cos x) 2))│");
+    println!("│  Commands: demo, quit                                 │");
+    println!("└────────────────────────────────────────────────────────┘");
+    loop {
+        println!();
+        print!("  LHS > ");
+        io::stdout().flush().unwrap();
+        let mut lhs = String::new();
+        io::stdin().read_line(&mut lhs).unwrap();
+        let lhs = lhs.trim();
+        if lhs.eq_ignore_ascii_case("quit") || lhs.eq_ignore_ascii_case("exit") {
+            break;
+        }
+        if lhs.eq_ignore_ascii_case("demo") {
+            for (name, l, r) in demo_identities() {
+                println!("  ── {} ──", name);
+                cli_verify(l, r);
+            }
+            continue;
+        }
+        print!("  RHS > ");
+        io::stdout().flush().unwrap();
+        let mut rhs = String::new();
+        io::stdin().read_line(&mut rhs).unwrap();
+        cli_verify(lhs, rhs.trim());
     }
 }
 
-fn main() {
-    let start = "(+ (^ (sin x) 2) (^ (cos x) 2))";
-    let target = "1";
-    println!("Verifying: {} = {}", start, target);
-    verify_identity(start, target);
+// ---------------------------------------------------------------------------
+//  Entry point
+// ---------------------------------------------------------------------------
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    // Process arguments: skip the program name and filter out any flags (starting with -)
+    let pos_args: Vec<String> = std::env::args()
+        .skip(1)
+        .filter(|a| !a.starts_with('-'))
+        .collect();
+
+    match pos_args.as_slice() {
+        // `cargo run -- serve` -> start web server
+        [cmd, ..] if cmd == "serve" => {
+            let port: u16 = pos_args.get(1)
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(8080);
+
+            println!("🌐 Starting Trig Verifier web server on http://localhost:{}", port);
+
+            HttpServer::new(|| {
+                let cors = Cors::permissive();
+                App::new()
+                    .wrap(cors)
+                    .route("/api/verify", web::post().to(verify_handler))
+                    .route("/api/health", web::get().to(health))
+                    .service(fs::Files::new("/", "./static").index_file("index.html"))
+            })
+            .bind(("127.0.0.1", port))?
+            .run()
+            .await
+        }
+        // Exactly two positional args -> single verification
+        [lhs, rhs] => {
+            cli_verify(lhs, rhs);
+            Ok(())
+        }
+        // No positional args -> demo + REPL
+        [] => {
+            println!("\n  Running demos...\n");
+            for (name, l, r) in demo_identities() {
+                println!("  ── {} ──", name);
+                cli_verify(l, r);
+            }
+            repl();
+            Ok(())
+        }
+        _ => {
+            eprintln!("Usage:");
+            eprintln!("  trig_verifier                          (interactive)");
+            eprintln!("  trig_verifier \"<lhs>\" \"<rhs>\"          (verify one)");
+            eprintln!("  trig_verifier serve [port]             (web server)");
+            std::process::exit(1);
+        }
+    }
 }

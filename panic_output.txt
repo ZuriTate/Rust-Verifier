@@ -1,0 +1,7 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.69s
+     Running `target\debug\trig_verifier.exe "(+ (tan x) (cot x))" "(* (sec x) (csc x))"`
+
+thread 'main' panicked at src\engine.rs:84:15:
+called `Result::unwrap()` on an `Err` value: "Rewrite div-scale refers to unbound var ?c"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: process didn't exit successfully: `target\debug\trig_verifier.exe "(+ (tan x) (cot x))" "(* (sec x) (csc x))"` (exit code: 101)

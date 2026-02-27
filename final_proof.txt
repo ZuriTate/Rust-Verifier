@@ -1,0 +1,22 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.75s
+     Running `target\debug\trig_verifier.exe "(+ (tan x) (cot x))" "(* (sec x) (csc x))"`
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  Verifying:  (+ (tan x) (cot x))  =  (* (sec x) (csc x))
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  Γ£ô Identity VERIFIED
+
+  Proof (11 steps):
+  ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    1. (+ (tan x) (cot x))
+    2. (Rewrite=> add-comm (+ (cot x) (tan x)))
+    3. (+ (Rewrite=> cot-quot (/ (cos x) (sin x))) (tan x))
+    4. (+ (/ (cos x) (sin x)) (Rewrite=> tan-quot (/ (sin x) (cos x))))
+    5. (Rewrite=> add-fracs (/ (+ (* (cos x) (cos x)) (* (sin x) (sin x))) (* (sin x) (cos x))))
+    6. (/ (Rewrite<= add-comm (+ (* (sin x) (sin x)) (* (cos x) (cos x)))) (* (sin x) (cos x)))
+    7. (/ (Rewrite=> pyth-1-alt 1) (* (sin x) (cos x)))
+    8. (Rewrite<= recip-mul-rev (* (/ 1 (sin x)) (/ 1 (cos x))))
+    9. (* (Rewrite<= csc-def (csc x)) (/ 1 (cos x)))
+    10. (* (csc x) (Rewrite<= sec-def (sec x)))
+    11. (Rewrite<= mul-comm (* (sec x) (csc x)))
+
