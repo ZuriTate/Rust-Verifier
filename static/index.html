@@ -572,9 +572,6 @@
       margin-bottom: 4px;
     }
 
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    }
-
     /* Formal Proof Style */
     .proof-step {
       background: var(--bg-glass);
@@ -879,6 +876,30 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* Copy Button */
+    .copy-math-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-secondary);
+      padding: 4px;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .copy-math-btn:hover {
+      background: var(--accent-violet);
+      color: white;
+      border-color: transparent;
+    }
+
+    .copy-math-btn:active {
+      transform: scale(0.9);
+    }
   </style>
 </head>
 
@@ -953,14 +974,24 @@
       </div>
       <div class="control-grid">
         <label class="control-toggle">
-          <input type="checkbox" id="toggle-boring" checked>
+          <input type="checkbox" id="toggle-foundations" checked>
           <span class="slider"></span>
-          <span class="label">Show Foundations <small>(Commutativity, Identity)</small></span>
+          <span class="label">Foundations <small>(Commutativity, Identity)</small></span>
         </label>
         <label class="control-toggle">
           <input type="checkbox" id="toggle-algebra" checked>
           <span class="slider"></span>
-          <span class="label">Show Algebra <small>(Fractions, Powers)</small></span>
+          <span class="label">Algebra <small>(Distribution, Polynomials)</small></span>
+        </label>
+        <label class="control-toggle">
+          <input type="checkbox" id="toggle-fractions" checked>
+          <span class="slider"></span>
+          <span class="label">Fractions <small>(Common Denom, Scaling)</small></span>
+        </label>
+        <label class="control-toggle">
+          <input type="checkbox" id="toggle-trig" checked>
+          <span class="slider"></span>
+          <span class="label">Trig Rules <small>(Pythagorean, Double Angle)</small></span>
         </label>
       </div>
     </div>
@@ -1062,6 +1093,7 @@
       { label: 'sin²x + cos²x = 1', lhs: 'sin^2(x) + cos^2(x)', rhs: '1' },
       { label: 'tan²x + 1 = sec²x', lhs: 'tan^2(x) + 1', rhs: 'sec^2(x)' },
       { label: 'cot²x + 1 = csc²x', lhs: 'cot^2(x) + 1', rhs: 'csc^2(x)' },
+      { label: '(x+1)(x-1) = x²-1', lhs: '(x + 1) * (x - 1)', rhs: 'x^2 - 1' },
       { label: 'tan(x) = sin(x)/cos(x)', lhs: 'tan(x)', rhs: 'sin(x) / cos(x)' },
       { label: 'csc(x) = 1/sin(x)', lhs: 'csc(x)', rhs: '1 / sin(x)' },
       { label: 'sec²x − tan²x = 1', lhs: 'sec^2(x) - tan^2(x)', rhs: '1' },
@@ -1133,7 +1165,7 @@
       let [base, p] = parseUnary(tokens, pos);
       if (p < tokens.length && tokens[p].type === 'op' && tokens[p].value === '^') {
         p++;
-        let [exp, p2] = parseUnary(tokens, p);
+        let [exp, p2] = parsePower(tokens, p); // Right-associative
         return [`(^ ${base} ${exp})`, p2];
       }
       return [base, p];
@@ -1258,31 +1290,72 @@
       }
     }
 
-    function astToLatex(node) {
+    const PRECEDENCE = {
+      '+': 10, '-': 10,
+      '*': 20, '/': 20,
+      '^': 30,
+      'neg': 25,
+      'trig': 40,
+      'atom': 50
+    };
+
+    function astToLatex(node, parentPrec = 0) {
       if (!node) return '';
       if (node.type === 'atom') return node.value;
+
       const op = node.op;
-      const c = node.children.map(astToLatex);
 
-      // Handle internal egg annotations (Rewrite=> rule result)
+      // Handle egg annotations
       if (op.startsWith('Rewrite')) {
-        // node.children[0] is the rule name, node.children[1] is the result
-        return astToLatex(node.children[1]);
+        return astToLatex(node.children[1], parentPrec);
       }
 
-      const trigFuncs = ['sin', 'cos', 'tan', 'csc', 'sec', 'cot'];
-      if (trigFuncs.includes(op)) {
-        return `\\${op}\\left(${c[0]}\\right)`;
+      const currentPrec = PRECEDENCE[op] || (['sin', 'cos', 'tan', 'csc', 'sec', 'cot'].includes(op) ? PRECEDENCE.trig : PRECEDENCE.atom);
+
+      let result = '';
+      const c = node.children;
+
+      if (['sin', 'cos', 'tan', 'csc', 'sec', 'cot'].includes(op)) {
+        result = `\\${op}\\left(${astToLatex(c[0])}\\right)`;
+      } else if (op === 'neg') {
+        result = `-${astToLatex(c[0], PRECEDENCE.neg)}`;
+      } else if (op === '+') {
+        result = `${astToLatex(c[0], currentPrec)} + ${astToLatex(c[1], currentPrec)}`;
+      } else if (op === '-') {
+        result = `${astToLatex(c[0], currentPrec)} - ${astToLatex(c[1], currentPrec + 1)}`;
+      } else if (op === '*') {
+        const leftLatex = astToLatex(c[0], currentPrec);
+        const rightLatex = astToLatex(c[1], currentPrec);
+        const leftIsSum = c[0].type === 'call' && (c[0].op === '+' || c[0].op === '-');
+        const rightIsSum = c[1].type === 'call' && (c[1].op === '+' || c[1].op === '-');
+
+        if (leftIsSum && rightIsSum) {
+          result = `\\left(${leftLatex}\\right)\\left(${rightLatex}\\right)`;
+        } else if (leftIsSum) {
+          result = `\\left(${leftLatex}\\right) ${rightLatex}`;
+        } else if (rightIsSum) {
+          result = `${leftLatex} \\left(${rightLatex}\\right)`;
+        } else {
+          result = `${leftLatex} \\cdot ${rightLatex}`;
+        }
+      } else if (op === '/') {
+        result = `\\frac{${astToLatex(c[0])}}{${astToLatex(c[1])}}`;
+      } else if (op === '^') {
+        const base = c[0];
+        const exp = astToLatex(c[1]);
+        if (base.type === 'call' && ['sin', 'cos', 'tan', 'csc', 'sec', 'cot'].includes(base.op)) {
+          result = `\\${base.op}^{${exp}}\\left(${astToLatex(base.children[0])}\\right)`;
+        } else {
+          result = `{${astToLatex(base, PRECEDENCE['^'])}}^{${exp}}`;
+        }
+      } else {
+        result = `\\text{${op}}(${c.map(child => astToLatex(child)).join(', ')})`;
       }
-      if (op === 'neg') return `-${c[0]}`;
-      if (op === '+') return `${c[0]} + ${c[1]}`;
-      if (op === '-') return `${c[0]} - ${c[1]}`;
-      if (op === '*') {
-        return `${wrapForMul(node.children[0])} \\cdot ${wrapForMul(node.children[1])}`;
+
+      if (currentPrec < parentPrec) {
+        return `\\left(${result}\\right)`;
       }
-      if (op === '/') return `\\frac{${c[0]}}{${c[1]}}`;
-      if (op === '^') return `{${wrapPow(node.children[0])}}^{${c[1]}}`;
-      return `\\text{${op}}(${c.join(', ')})`;
+      return result;
     }
 
     function wrapForMul(node) {
@@ -1300,9 +1373,23 @@
     }
 
     function wrapPow(node) {
-      const latex = astToLatex(node);
-      if (node.type === 'call') return `\\left(${latex}\\right)`;
-      return latex;
+      if (node.type === 'call') {
+        return `\\left(${astToLatex(node)}\\right)`;
+      }
+      return astToLatex(node);
+    }
+
+    function copyMath(latex) {
+      navigator.clipboard.writeText(latex);
+      // Optional: Show a toast
+      const btn = event.currentTarget;
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = '✓';
+      btn.style.color = 'var(--accent-emerald)';
+      setTimeout(() => {
+        btn.innerHTML = originalHtml;
+        btn.style.color = '';
+      }, 1000);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1394,18 +1481,22 @@
     // ═══════════════════════════════════════════════════════════════
     //  RENDER RESULTS
     // ═══════════════════════════════════════════════════════════════
-    let lastResultData = null; // Store for re-rendering on settings change
-    const BORING_RULES = ['add-comm', 'mul-comm', 'add-assoc', 'mul-assoc', 'add-zero', 'sub-zero', 'mul-one', 'one-mul', 'div-one'];
-    const ALGEBRA_RULES = ['div-mul', 'div-add', 'mul-div', 'div-div', 'dist-mul-add', 'factor-mul-add', 'neg-def', 'sub-as-neg', 'cancel-add-sub', 'cancel-add-sub2'];
+    let lastResultData = null;
+    const CAT_FOUNDATIONS = ['add-comm', 'mul-comm', 'add-assoc', 'mul-assoc', 'add-zero', 'sub-zero', 'mul-one', 'one-mul', 'div-one', 'neg-neg', 'mul-neg-one'];
+    const CAT_ALGEBRA = ['dist-mul-add', 'factor-mul-add', 'dist-mul-sub', 'factor-mul-sub', 'sub-as-neg', 'foil', 'sq-add', 'sq-sub', 'diff-sq', 'cancel-add-sub', 'cancel-add-sub2', 'neg-def'];
+    const CAT_FRACTIONS = ['div-mul', 'div-add', 'mul-div', 'div-div', 'add-fracs', 'div-scale', 'mul-fracs', 'recip-mul', 'div-self'];
+    const CAT_TRIG = ['csc-def', 'sec-def', 'cot-def', 'tan-quot', 'cot-quot', 'pyth-1', 'pyth-1-alt', 'pyth-1-sub1', 'pyth-1-sub2', 'pyth-2', 'pyth-2-alt', 'pyth-2-sub', 'pyth-2-diff', 'pyth-3', 'pyth-3-alt', 'pyth-3-sub', 'pyth-3-diff', 'sin-neg', 'cos-neg', 'tan-neg', 'sin-double', 'cos-double'];
 
     function renderResult(data) {
       const container = document.getElementById('results');
-      lastResultData = data; // Store for re-rendering on settings change
+      lastResultData = data;
 
       if (data.verified) {
         let stepsHtml = '';
-        const showBoring = document.getElementById('toggle-boring').checked;
+        const showFoundations = document.getElementById('toggle-foundations').checked;
         const showAlgebra = document.getElementById('toggle-algebra').checked;
+        const showFractions = document.getElementById('toggle-fractions').checked;
+        const showTrig = document.getElementById('toggle-trig').checked;
 
         // Filter steps
         const filteredSteps = data.steps.filter((stepRaw, i) => {
@@ -1414,8 +1505,10 @@
           const ruleMatch = step.match(/\(Rewrite[<=>\s]+ ([\w-]+)/);
           const ruleId = ruleMatch ? ruleMatch[1] : '';
 
-          if (!showBoring && BORING_RULES.includes(ruleId)) return false;
-          if (!showAlgebra && ALGEBRA_RULES.includes(ruleId)) return false;
+          if (!showFoundations && CAT_FOUNDATIONS.includes(ruleId)) return false;
+          if (!showAlgebra && CAT_ALGEBRA.includes(ruleId)) return false;
+          if (!showFractions && CAT_FRACTIONS.includes(ruleId)) return false;
+          if (!showTrig && CAT_TRIG.includes(ruleId)) return false;
           return true;
         });
 
@@ -1437,6 +1530,9 @@
               <div class="proof-header">
                 <div class="proof-label">Step ${i + 1}</div>
                 <div class="proof-rule">${ruleName}</div>
+                <button class="copy-math-btn" onclick="copyMath('${latex.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" title="Copy LaTeX">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </button>
               </div>
               <div class="proof-math" id="step-math-${i}"></div>
             </div>`;
@@ -1532,6 +1628,11 @@
       'sq-add': 'Square of Sum',
       'sq-sub': 'Square of Difference',
       'diff-sq': 'Difference of Squares',
+      'dist-mul-sub': 'Distributive Law (Subtraction)',
+      'factor-mul-sub': 'Factoring Terms (Subtraction)',
+      'neg-neg': 'Double Negation',
+      'one-pow': 'Power of One',
+      'mul-neg-one': 'Negation Definition',
     };
 
     function getFancyRuleName(id) {
@@ -1581,7 +1682,7 @@
     }
 
     // Event listeners for control panel toggles
-    ['toggle-boring', 'toggle-algebra'].forEach(id => {
+    ['toggle-foundations', 'toggle-algebra', 'toggle-fractions', 'toggle-trig'].forEach(id => {
       document.getElementById(id).addEventListener('change', () => {
         if (lastResultData) renderResult(lastResultData);
       });

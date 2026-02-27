@@ -62,6 +62,7 @@ fn rules() -> Vec<Rewrite<Math, ()>> {
 
         rewrite!("pow-one"   ; "(^ ?a 1)"             => "?a"),
         rewrite!("pow-zero"  ; "(^ ?a 0)"             => "1" if is_not_zero("?a")),
+        rewrite!("one-pow"   ; "(^ 1 ?a)"             => "1"),
         rewrite!("pow-two"   ; "(^ ?a 2)"             => "(* ?a ?a)"),
         rewrite!("sq-to-pow" ; "(* ?a ?a)"            => "(^ ?a 2)"),
 
@@ -69,22 +70,27 @@ fn rules() -> Vec<Rewrite<Math, ()>> {
         rewrite!("factor-mul-add"; "(+ (* ?a ?b) (* ?a ?c))" => "(* ?a (+ ?b ?c))"),
 
         rewrite!("neg-def"   ; "(neg ?a)"             => "(* -1 ?a)"),
-        rewrite!("sub-as-neg"; "(- ?a ?b)"            => "(+ ?a (neg ?b))"),
+        rewrite!("mul-neg-one"; "(* -1 ?a)"           => "(neg ?a)"),
+        rewrite!("neg-neg"   ; "(neg (neg ?a))"       => "?a"),
 
         rewrite!("cancel-add-sub" ; "(- (+ ?a ?b) ?b)" => "?a"),
         rewrite!("cancel-add-sub2"; "(- (+ ?a ?b) ?a)" => "?b"),
 
-        // Polynomial Shortcuts
-        rewrite!("foil" ; "(* (+ ?a ?b) (+ ?c ?d))" <=> "(+ (* ?a ?c) (+ (* ?a ?d) (+ (* ?b ?c) (* ?b ?d))))"),
-        rewrite!("sq-add" ; "(^ (+ ?a ?b) 2)" <=> "(+ (^ ?a 2) (+ (* 2 (* ?a ?b)) (^ ?b 2)))"),
-        rewrite!("sq-sub" ; "(^ (- ?a ?b) 2)" <=> "(+ (^ ?a 2) (- (^ ?b 2) (* 2 (* ?a ?b))))"),
-        rewrite!("diff-sq"; "(* (+ ?a ?b) (- ?a ?b))" <=> "(- (^ ?a 2) (^ ?b 2))"),
+        rewrite!("dist-mul-sub" ; "(* ?a (- ?b ?c))" => "(- (* ?a ?b) (* ?a ?c))"),
+        rewrite!("factor-mul-sub"; "(- (* ?a ?b) (* ?a ?c))" => "(* ?a (- ?b ?c))"),
 
         rewrite!("div-mul"   ; "(/ (* ?a ?b) ?b)" => "?a" if is_not_zero("?b")),
         rewrite!("div-add"   ; "(+ (/ ?a ?c) (/ ?b ?c))" => "(/ (+ ?a ?b) ?c)"),
         rewrite!("mul-div"   ; "(* ?a (/ ?b ?c))" => "(/ (* ?a ?b) ?c)"),
         rewrite!("div-div"   ; "(/ (/ ?a ?b) ?c)" => "(/ ?a (* ?b ?c))"),
     ];
+
+    // Polynomial Shortcuts
+    rs.extend(rewrite!("foil" ; "(* (+ ?a ?b) (+ ?c ?d))" <=> "(+ (* ?a ?c) (+ (* ?a ?d) (+ (* ?b ?c) (* ?b ?d))))"));
+    rs.extend(rewrite!("sq-add" ; "(^ (+ ?a ?b) 2)" <=> "(+ (^ ?a 2) (+ (* 2 (* ?a ?b)) (^ ?b 2)))"));
+    rs.extend(rewrite!("sq-sub" ; "(^ (- ?a ?b) 2)" <=> "(+ (^ ?a 2) (- (^ ?b 2) (* 2 (* ?a ?b))))"));
+    rs.extend(rewrite!("diff-sq"; "(* (+ ?a ?b) (- ?a ?b))" <=> "(- (^ ?a 2) (^ ?b 2))"));
+    rs.extend(rewrite!("sub-as-neg"; "(- ?a ?b)" <=> "(+ ?a (neg ?b))"));
 
     // Advanced fraction rules for common denominators
     rs.push(rewrite!("div-scale" ; "(/ (* ?a ?c) (* ?b ?c))" => "(/ ?a ?b)" if is_not_zero("?c")));
@@ -168,8 +174,8 @@ pub fn verify(lhs: &str, rhs: &str) -> VerifyResult {
         .with_explanations_enabled()
         .with_expr(&lhs_expr)
         .with_expr(&rhs_expr)
-        .with_iter_limit(50)
-        .with_node_limit(100_000)
+        .with_iter_limit(70)
+        .with_node_limit(150_000)
         .run(&rules());
 
     let root_lhs = runner.roots[0];
