@@ -1,0 +1,142 @@
+   Compiling trig_verifier v0.1.0 (C:\Users\ciara\Rust Math\trig_verifier)
+error[E0308]: mismatched types
+  --> src\main.rs:51:9
+   |
+51 |         rewrite!("csc-def"; "(csc ?x)" <=> "(/ 1 (sin ?x))"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:52:9
+   |
+52 |         rewrite!("sec-def"; "(sec ?x)" <=> "(/ 1 (cos ?x))"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:53:9
+   |
+53 |         rewrite!("cot-def"; "(cot ?x)" <=> "(/ 1 (tan ?x))"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:56:9
+   |
+56 |         rewrite!("tan-quot"; "(tan ?x)" <=> "(/ (sin ?x) (cos ?x))"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:57:9
+   |
+57 |         rewrite!("cot-quot"; "(cot ?x)" <=> "(/ (cos ?x) (sin ?x))"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:60:9
+   |
+60 |         rewrite!("pythagorean-1"; "(+ (^ (sin ?x) 2) (^ (cos ?x) 2))" <=> "1"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:61:9
+   |
+61 |         rewrite!("pythagorean-1-alt1"; "(+ (* (sin ?x) (sin ?x)) (* (cos ?x) (cos ?x)))" <=> "1"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:62:9
+   |
+62 |         rewrite!("pythagorean-1-sub1"; "(- 1 (^ (sin ?x) 2))" <=> "(^ (cos ?x) 2)"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:63:9
+   |
+63 |         rewrite!("pythagorean-1-sub2"; "(- 1 (^ (cos ?x) 2))" <=> "(^ (sin ?x) 2)"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:65:9
+   |
+65 |         rewrite!("pythagorean-2"; "(+ 1 (^ (tan ?x) 2))" <=> "(^ (sec ?x) 2)"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:66:9
+   |
+66 |         rewrite!("pythagorean-2-alt"; "(+ (^ (tan ?x) 2) 1)" <=> "(^ (sec ?x) 2)"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:68:9
+   |
+68 |         rewrite!("pythagorean-3"; "(+ 1 (^ (cot ?x) 2))" <=> "(^ (csc ?x) 2)"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src\main.rs:69:9
+   |
+69 |         rewrite!("pythagorean-3-alt"; "(+ (^ (cot ?x) 2) 1)" <=> "(^ (csc ?x) 2)"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Rewrite<_, _>`, found `Vec<Rewrite<_, _>>`
+   |
+   = note: expected struct `egg::Rewrite<_, _>`
+              found struct `Vec<egg::Rewrite<_, _>>`
+   = note: this error originates in the macro `vec` which comes from the expansion of the macro `rewrite` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `egraph`
+  --> src\main.rs:73:44
+   |
+73 | fn is_not_zero(vars: &str) -> impl Fn(&mut egraph::EGraph<Math, ()>, Id, &Subst) -> bool {
+   |                                            ^^^^^^ use of unresolved module or unlinked crate `egraph`
+   |
+   = help: if you wanted to use a crate named `egraph`, use `cargo add egraph` to add it to your `Cargo.toml`
+
+Some errors have detailed explanations: E0308, E0433.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `trig_verifier` (bin "trig_verifier") due to 14 previous errors
