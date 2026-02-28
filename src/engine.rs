@@ -92,6 +92,15 @@ fn rules() -> Vec<Rewrite<Math, ()>> {
     rs.extend(rewrite!("diff-sq"; "(* (+ ?a ?b) (- ?a ?b))" <=> "(- (^ ?a 2) (^ ?b 2))"));
     rs.extend(rewrite!("sub-as-neg"; "(- ?a ?b)" <=> "(+ ?a (neg ?b))"));
 
+    // Power expansions
+    rs.extend(rewrite!("pow-three" ; "(^ ?a 3)" <=> "(* ?a (^ ?a 2))"));
+    rs.extend(rewrite!("pow-four"  ; "(^ ?a 4)" <=> "(* ?a (^ ?a 3))"));
+    rs.extend(rewrite!("pow-five"  ; "(^ ?a 5)" <=> "(* ?a (^ ?a 4))"));
+
+    // Sum/Difference of Cubes
+    rs.extend(rewrite!("sum-cubes" ; "(+ (^ ?a 3) (^ ?b 3))" <=> "(* (+ ?a ?b) (+ (- (^ ?a 2) (* ?a ?b)) (^ ?b 2)))"));
+    rs.extend(rewrite!("diff-cubes"; "(- (^ ?a 3) (^ ?b 3))" <=> "(* (- ?a ?b) (+ (+ (^ ?a 2) (* ?a ?b)) (^ ?b 2)))"));
+
     // Advanced fraction rules for common denominators
     rs.push(rewrite!("div-scale" ; "(/ (* ?a ?c) (* ?b ?c))" => "(/ ?a ?b)" if is_not_zero("?c")));
     rs.extend(rewrite!("add-fracs" ; "(+ (/ ?a ?b) (/ ?c ?d))" <=> "(/ (+ (* ?a ?d) (* ?c ?b)) (* ?b ?d))" if is_not_zero("?b") if is_not_zero("?d")));

@@ -1,7 +1,7 @@
 mod engine;
 
 use serde::{Deserialize, Serialize};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use tiny_http::{Method, Response, Server};
 
 // ---------------------------------------------------------------------------

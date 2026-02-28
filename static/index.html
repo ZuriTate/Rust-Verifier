@@ -1097,6 +1097,7 @@
       { label: 'tan(x) = sin(x)/cos(x)', lhs: 'tan(x)', rhs: 'sin(x) / cos(x)' },
       { label: 'csc(x) = 1/sin(x)', lhs: 'csc(x)', rhs: '1 / sin(x)' },
       { label: 'sec²x − tan²x = 1', lhs: 'sec^2(x) - tan^2(x)', rhs: '1' },
+      { label: "Sum of Cubes Identity", lhs: "(* (+ (sin x) (cos x)) (+ 1 (neg (* (sin x) (cos x)))))", rhs: "(+ (^ (sin x) 3) (^ (cos x) 3))" },
     ];
 
     // ═══════════════════════════════════════════════════════════════
@@ -1485,7 +1486,7 @@
     const CAT_FOUNDATIONS = ['add-comm', 'mul-comm', 'add-assoc', 'mul-assoc', 'add-zero', 'sub-zero', 'mul-one', 'one-mul', 'div-one', 'neg-neg', 'mul-neg-one'];
     const CAT_ALGEBRA = ['dist-mul-add', 'factor-mul-add', 'dist-mul-sub', 'factor-mul-sub', 'sub-as-neg', 'foil', 'sq-add', 'sq-sub', 'diff-sq', 'cancel-add-sub', 'cancel-add-sub2', 'neg-def'];
     const CAT_FRACTIONS = ['div-mul', 'div-add', 'mul-div', 'div-div', 'add-fracs', 'div-scale', 'mul-fracs', 'recip-mul', 'div-self'];
-    const CAT_TRIG = ['csc-def', 'sec-def', 'cot-def', 'tan-quot', 'cot-quot', 'pyth-1', 'pyth-1-alt', 'pyth-1-sub1', 'pyth-1-sub2', 'pyth-2', 'pyth-2-alt', 'pyth-2-sub', 'pyth-2-diff', 'pyth-3', 'pyth-3-alt', 'pyth-3-sub', 'pyth-3-diff', 'sin-neg', 'cos-neg', 'tan-neg', 'sin-double', 'cos-double'];
+    const CAT_TRIG = ['csc-def', 'sec-def', 'cot-def', 'tan-quot', 'cot-quot', 'pyth-1', 'pyth-1-alt', 'pyth-1-sub1', 'pyth-1-sub2', 'pyth-2', 'pyth-2-alt', 'pyth-2-sub', 'pyth-2-diff', 'pyth-3', 'pyth-3-alt', 'pyth-3-sub', 'pyth-3-diff', 'sin-neg', 'cos-neg', 'tan-neg', 'sin-double', 'cos-double', 'sum-cubes', 'pow-three', 'pow-four', 'pow-five'];
 
     function renderResult(data) {
       const container = document.getElementById('results');
@@ -1633,6 +1634,11 @@
       'neg-neg': 'Double Negation',
       'one-pow': 'Power of One',
       'mul-neg-one': 'Negation Definition',
+      'sum-cubes': 'Sum of Cubes Identity',
+      'diff-cubes': 'Difference of Cubes Identity',
+      'pow-three': 'Power of 3 Expansion',
+      'pow-four': 'Power of 4 Expansion',
+      'pow-five': 'Power of 5 Expansion',
     };
 
     function getFancyRuleName(id) {
