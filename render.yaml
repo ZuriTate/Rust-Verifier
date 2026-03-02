@@ -1,0 +1,12 @@
+services:
+  # Rust + Python Web Service
+  - type: web
+    name: trig-verifier
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 8080

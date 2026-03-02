@@ -5,12 +5,21 @@ import os
 import sys
 import json
 
-PORT = 8081
-HOST = "127.0.0.1"
+PORT = int(os.environ.get("PORT", 8081))
+HOST = "0.0.0.0"  # Listen on all interfaces for cloud hosting
 
-def _rust_exe_path() -> str:
-    exe_ext = ".exe" if sys.platform == "win32" else ""
-    return os.path.abspath(os.path.join(".", "target", "release", f"trig_verifier{exe_ext}"))
+def _rust_exe_path():
+    # Try different paths for the compiled binary
+    possible_paths = [
+        os.path.join(os.path.dirname(__file__), "target", "release", "trig_verifier"),
+        os.path.join(os.path.dirname(__file__), "trig_verifier"),
+        "/app/trig_verifier",  # Docker path
+        "./trig_verifier",     # Current directory
+    ]
+    for path in possible_paths:
+        if os.path.exists(path) and os.access(path, os.X_OK):
+            return path
+    return os.path.join(os.path.dirname(__file__), "target", "release", "trig_verifier")
 
 def _parse_steps(stdout: str):
     steps = []
