@@ -1,10 +1,11 @@
 services:
-  # Rust + Python Web Service
+  # Flask Web Service
   - type: web
     name: trig-verifier
-    env: docker
+    env: python
     plan: free
-    dockerfilePath: ./Dockerfile
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
     autoDeploy: true
     healthCheckPath: /
     envVars:
