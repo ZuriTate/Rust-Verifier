@@ -1,32 +1,31 @@
-# Build stage for Rust binary
-FROM rust:1.75 as builder
-
-WORKDIR /app
-COPY Cargo.toml Cargo.lock ./
-COPY src ./src
-
-# Clear cache and build
-RUN cargo cache --clear && cargo build --release
-
-# Runtime stage
+# Use Python base with Rust installed
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Python dependencies
-RUN pip install --no-cache-dir subprocess
+# Install system dependencies and Rust
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the compiled Rust binary from builder stage
-COPY --from=builder /app/target/release/trig_verifier /app/trig_verifier
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Copy Python server
+# Copy source code
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
 COPY server.py ./
 
-# Make the binary executable
-RUN chmod +x trig_verifier
+# Build Rust binary
+RUN export CARGO_HOME=/tmp/cargo && \
+    export RUSTUP_HOME=/tmp/rustup && \
+    cargo cache --clear && \
+    cargo build --release
 
-# Expose port
-EXPOSE 8080
+# Make binary executable
+RUN chmod +x target/release/trig_verifier
 
-# Run the Python server
+# Start the server
 CMD ["python", "server.py"]
