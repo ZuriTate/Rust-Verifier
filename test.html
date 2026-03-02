@@ -1,70 +1,4 @@
-import http.server
-import subprocess
-import urllib.parse
-import os
-import sys
-import json
-
-PORT = 8081
-HOST = "127.0.0.1"
-
-def _rust_exe_path() -> str:
-    exe_ext = ".exe" if sys.platform == "win32" else ""
-    return os.path.abspath(os.path.join(".", "target", "release", f"trig_verifier{exe_ext}"))
-
-def _parse_steps(stdout: str):
-    steps = []
-    for raw in stdout.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        if line.startswith("Start"):
-            parts = line.split(":", 1)
-            if len(parts) == 2:
-                steps.append(parts[1].strip())
-        elif line.startswith("Step "):
-            parts = line.split(":", 1)
-            if len(parts) == 2:
-                steps.append(parts[1].strip())
-    return steps
-
-def _run_verifier(expr1: str, expr2: str):
-    exe_path = _rust_exe_path()
-
-    if not os.path.exists(exe_path):
-        output = f"Error: Executable not found at {exe_path}. Did you run 'cargo build --release'?"
-        return {"verified": False, "steps": [], "error": output, "raw": output}
-
-    try:
-        result = subprocess.run(
-            [exe_path, expr1, expr2],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=100,
-        )
-        stdout = result.stdout or ""
-        stderr = result.stderr or ""
-        raw = stdout if result.returncode == 0 else (stderr + stdout)
-        verified = result.returncode == 0 and "Identity Verified Successfully!" in stdout
-        steps = _parse_steps(stdout)
-        error = None
-        if not verified:
-            error = (stderr + "\n" + stdout).strip() or "Could not verify the identity."
-        return {"verified": verified, "steps": steps, "error": error, "raw": raw}
-    except subprocess.TimeoutExpired:
-        output = "Error: The search timed out. The problem was too complex or requires more node limits in the Rust engine."
-        return {"verified": False, "steps": [], "error": output, "raw": output}
-    except Exception as e:
-        output = str(e)
-        return {"verified": False, "steps": [], "error": output, "raw": output}
-
-class TrigHandler(http.server.BaseHTTPRequestHandler):
-    
-    def do_GET(self):
-        print(f"--> [GET] Browser requested: {self.path}")
-        if self.path == '/':
-            html = r"""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -630,105 +564,6 @@ class TrigHandler(http.server.BaseHTTPRequestHandler):
       return [{ type: 'atom', value: tokens[pos] }, pos + 1];
     }
 
-    function _isAtomValue(node, v) {
-      return node && node.type === 'atom' && node.value === v;
-    }
-
-    function _nodeKey(node) {
-      if (!node) return '';
-      if (node.type === 'atom') return `A:${node.value}`;
-      return `C:${node.op}(${node.children.map(_nodeKey).join(',')})`;
-    }
-
-    function _normalizeAST(node) {
-      if (!node) return null;
-      if (node.type === 'atom') return node;
-
-      const op = node.op;
-      const kids = (node.children || []).map(_normalizeAST).filter(x => x);
-
-      if (op === 'Rewrite=>' || op === 'Rewrite<=' || op === 'Rewrite<=>') {
-        return kids[1] || null;
-      }
-
-      if (op === 'neg') {
-        const inner = kids[0];
-        if (inner && inner.type === 'call' && inner.op === 'neg') return inner.children[0] || null;
-        return { type: 'call', op: 'neg', children: [inner] };
-      }
-
-      if (op === '+') {
-        let flat = [];
-        for (const k of kids) {
-          if (k && k.type === 'call' && k.op === '+') flat.push(...(k.children || []));
-          else flat.push(k);
-        }
-        flat = flat.filter(k => !_isAtomValue(k, '0'));
-        flat.sort((a, b) => _nodeKey(a).localeCompare(_nodeKey(b)));
-        if (flat.length === 0) return { type: 'atom', value: '0' };
-        if (flat.length === 1) return flat[0];
-        return { type: 'call', op: '+', children: flat };
-      }
-
-      if (op === '*') {
-        let flat = [];
-        for (const k of kids) {
-          if (k && k.type === 'call' && k.op === '*') flat.push(...(k.children || []));
-          else flat.push(k);
-        }
-        if (flat.some(k => _isAtomValue(k, '0'))) return { type: 'atom', value: '0' };
-        flat = flat.filter(k => !_isAtomValue(k, '1'));
-        flat.sort((a, b) => _nodeKey(a).localeCompare(_nodeKey(b)));
-        if (flat.length === 0) return { type: 'atom', value: '1' };
-        if (flat.length === 1) return flat[0];
-        return { type: 'call', op: '*', children: flat };
-      }
-
-      if (op === '-') {
-        const a = kids[0];
-        const b = kids[1];
-        if (!b) return a;
-        if (_isAtomValue(b, '0')) return a;
-        if (_isAtomValue(a, '0')) return _normalizeAST({ type: 'call', op: 'neg', children: [b] });
-        return { type: 'call', op: '-', children: [a, b] };
-      }
-
-      if (op === '/') {
-        const a = kids[0];
-        const b = kids[1];
-        if (b && _isAtomValue(b, '1')) return a;
-        return { type: 'call', op: '/', children: [a, b] };
-      }
-
-      if (op === 'pow') {
-        const base = kids[0];
-        const exp = kids[1];
-        if (_isAtomValue(exp, '1')) return base;
-        if (_isAtomValue(exp, '0')) return { type: 'atom', value: '1' };
-        return { type: 'call', op: 'pow', children: [base, exp] };
-      }
-
-      return { type: 'call', op, children: kids };
-    }
-
-    function _astToCanonicalSexpr(node) {
-      if (!node) return '';
-      if (node.type === 'atom') return node.value;
-      return `(${node.op} ${node.children.map(_astToCanonicalSexpr).join(' ')})`;
-    }
-
-    function canonicalizeSexpr(sexpr) {
-      if (!sexpr) return '';
-      try {
-        const tokens = tokenizeSexpr(sexpr);
-        const [ast] = parseSexprAST(tokens, 0);
-        const normalized = _normalizeAST(ast);
-        return _astToCanonicalSexpr(normalized);
-      } catch {
-        return sexpr;
-      }
-    }
-
     const PRECEDENCE = {
       '+': 10,
       '-': 10,
@@ -870,58 +705,15 @@ class TrigHandler(http.server.BaseHTTPRequestHandler):
 
     const RULE_MAPPING = {
       'starting': 'Initial expression',
-      'add-0': 'Simplify: a + 0 = a',
-      'add-0-r': 'Simplify: 0 + a = a',
-      'sub-0': 'Simplify: a - 0 = a',
-      'sub-self': 'Simplify: a - a = 0',
-      'mul-0': 'Simplify: a * 0 = 0',
-      'mul-0-r': 'Simplify: 0 * a = 0',
-      'mul-1': 'Simplify: a * 1 = a',
-      'mul-1-r': 'Simplify: 1 * a = a',
-      'div-1': 'Simplify: a / 1 = a',
-      'div-self': 'Simplify: a / a = 1',
-      'pow-0': 'Simplify: a^0 = 1',
-      'pow-1': 'Simplify: a^1 = a',
-      'one-pow': 'Simplify: 1^a = 1',
-      'sub-to-neg': 'Rewrite: 0 - a = -a',
-      'neg-neg': 'Simplify: -(-a) = a',
-      'mul-neg-one': 'Rewrite: (-1)*a = -a',
-      'div-neg-cancel': 'Simplify: (-a)/(-b) = a/b',
-      'add-comm': 'Commutativity of addition',
-      'add-assoc': 'Associativity of addition',
-      'mul-comm': 'Commutativity of multiplication',
-      'mul-assoc': 'Associativity of multiplication',
-      'sub-to-add-neg': 'Rewrite subtraction as addition of a negative',
-      'sub-sub': 'Rewrite: a - (b - c) = (a - b) + c',
-      'neg-dist-add': 'Distribute a negative sign over addition',
-      'pow-sq': 'Rewrite: a^2 = a*a',
-      'pow-mul': 'Rewrite: (ab)^n = a^n b^n',
-      'pow-div': 'Rewrite: (a/b)^n = a^n / b^n',
-      'frac-mul': 'Multiply fractions',
-      'frac-div': 'Divide fractions by multiplying by the reciprocal',
-      'frac-nest-num': 'Simplify a nested fraction in the numerator',
-      'frac-nest-den': 'Simplify a nested fraction in the denominator',
-      'frac-cancel-1': 'Cancel a factor in a fraction product',
-      'frac-cancel-2': 'Cancel a factor in a fraction product',
-      'div-cancel-1': 'Cancel a common factor in a fraction',
-      'div-cancel-2': 'Cancel a common factor in a fraction',
-      'frac-reduce': 'Reduce a fraction by canceling a common factor',
-      'add-frac-int': 'Add an integer and a fraction',
-      'sub-frac-int': 'Subtract a fraction from an integer',
       'tan-def': 'Definition of tangent: tan(x) = sin(x)/cos(x)',
       'cot-def': 'Definition of cotangent: cot(x) = cos(x)/sin(x)',
       'sec-def': 'Definition of secant: sec(x) = 1/cos(x)',
       'csc-def': 'Definition of cosecant: csc(x) = 1/sin(x)',
-      'pythag-1': 'Pythagorean identity: sin^2(x) + cos^2(x) = 1',
-      'pythag-1-rev': 'Pythagorean identity: sin^2(x) + cos^2(x) = 1',
-      'pythag-neg-csc': 'Identity: 1 - csc^2(x) = -cot^2(x)',
-      'pythag-neg-sec': 'Identity: 1 - sec^2(x) = -tan^2(x)',
-      'pythag-sin-sub': 'Identity: 1 - sin^2(x) = cos^2(x)',
-      'pythag-cos-sub': 'Identity: 1 - cos^2(x) = sin^2(x)',
-      'tan-sec': 'Identity: sec^2(x) = 1 + tan^2(x)',
-      'sec2-sub-1': 'Identity: sec^2(x) - 1 = tan^2(x)',
-      'cot-csc': 'Identity: csc^2(x) = 1 + cot^2(x)',
-      'sin-cos-sq': 'Identity: sin^2(x) = 1 - cos^2(x)',
+      'pythag-1': 'Pythagorean identity: sin²(x) + cos²(x) = 1',
+      'pythag-1-rev': 'Pythagorean identity: sin²(x) + cos²(x) = 1',
+      'tan-sec': 'Identity: sec²(x) = 1 + tan²(x)',
+      'sec2-sub-1': 'Identity: sec²(x) − 1 = tan²(x)',
+      'cot-csc': 'Identity: csc²(x) = 1 + cot²(x)',
       'frac-add-cross': 'Add fractions by cross-multiplying',
       'frac-sub-cross': 'Subtract fractions by cross-multiplying',
       'frac-add-same-den': 'Add fractions with a common denominator',
@@ -933,12 +725,14 @@ class TrigHandler(http.server.BaseHTTPRequestHandler):
       'sum-cubes': 'Sum of cubes factorization',
       'diff-cubes': 'Difference of cubes factorization',
       'pow-4': 'Rewrite a fourth power as a product of squares',
+      'mul-1': 'Remove multiplication by 1',
+      'mul-1-r': 'Remove multiplication by 1',
       'dist-left': 'Distribute multiplication over addition',
       'dist-right': 'Distribute multiplication over addition',
       'dist-sub-left': 'Distribute multiplication over subtraction',
       'dist-sub-right': 'Distribute multiplication over subtraction',
-      'sec-tan-sq-sin': 'Rationalize (sec(x) - tan(x))^2',
-      'tan-sec-sq-sin': 'Rationalize (tan(x) - sec(x))^2',
+      'sec-tan-sq-sin': 'Rationalize (sec(x) − tan(x))²',
+      'tan-sec-sq-sin': 'Rationalize (tan(x) − sec(x))²',
       'csc-frac-diff': 'Simplify a special cosecant fraction difference',
     };
 
@@ -964,18 +758,7 @@ class TrigHandler(http.server.BaseHTTPRequestHandler):
       const container = document.getElementById('results');
       if (data.verified) {
         let stepsHtml = '';
-
-        const filtered = [];
-        let prevCanon = null;
-        for (let i = 0; i < data.steps.length; i++) {
-          const expr = data.steps[i];
-          const canon = canonicalizeSexpr(expr);
-          if (prevCanon !== null && canon === prevCanon) continue;
-          filtered.push(expr);
-          prevCanon = canon;
-        }
-
-        filtered.forEach((expr, i) => {
+        data.steps.forEach((expr, i) => {
           const m = expr.match(/\(Rewrite([<=>]+)\s+([\w-]+)/);
           const rewriteDir = m ? m[1] : null;
           const ruleId = m ? m[2] : (i === 0 ? 'starting' : '');
@@ -983,17 +766,17 @@ class TrigHandler(http.server.BaseHTTPRequestHandler):
           const delay = (i + 1) * 60;
           const latex = sexprToLatex(expr);
 
-          if (i > 0) stepsHtml += `<div class="proof-arrow" style="animation: fadeSlideUp 0.3s ease ${delay - 30}ms forwards; opacity: 0;">&darr;</div>`;
+          if (i > 0) stepsHtml += `<div class="proof-arrow" style="animation: fadeSlideUp 0.3s ease ${delay - 30}ms forwards; opacity: 0;">↓</div>`;
           stepsHtml += `<div class="proof-step" style="animation-delay: ${delay}ms; opacity: 0;"><div class="proof-header"><div class="proof-label">Step ${i + 1}</div><div class="proof-rule">${ruleName}</div></div><div class="proof-math" id="step-math-${i}"></div></div>`;
           setTimeout(() => {
             const el = document.getElementById(`step-math-${i}`);
             if (el) katex.render(latex, el, { throwOnError: false, displayMode: true });
           }, delay + 50);
         });
-        container.innerHTML = `<div class="result"><div class="result-banner success"><span class="icon">&check;</span><div class="meta"><span>Identity Verified</span><small>${filtered.length} steps</small></div></div><div class="steps-title">Proof Derivation</div><div class="proof-container">${stepsHtml}</div></div>`;
+        container.innerHTML = `<div class="result"><div class="result-banner success"><span class="icon">✓</span><div class="meta"><span>Identity Verified</span><small>${data.steps.length} steps</small></div></div><div class="steps-title">Proof Derivation</div><div class="proof-container">${stepsHtml}</div></div>`;
       } else {
         const msg = (data.error || 'The identity could not be proven within search limits.').replace(/</g, '&lt;');
-        container.innerHTML = `<div class="result"><div class="result-banner failure"><span class="icon">&times;</span><div class="meta"><span>Could Not Verify</span><small>${msg}</small></div></div></div>`;
+        container.innerHTML = `<div class="result"><div class="result-banner failure"><span class="icon">✗</span><div class="meta"><span>Could Not Verify</span><small>${msg}</small></div></div></div>`;
       }
     }
 
@@ -1006,7 +789,7 @@ class TrigHandler(http.server.BaseHTTPRequestHandler):
         return;
       }
       btn.classList.add('loading');
-      btn.querySelector('.btn-text').textContent = 'Verifying...';
+      btn.querySelector('.btn-text').textContent = 'Verifying…';
       try {
         const res = await fetch('/api/verify', {
           method: 'POST',
@@ -1026,86 +809,3 @@ class TrigHandler(http.server.BaseHTTPRequestHandler):
 </body>
 
 </html>
-""".encode('utf-8')
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html; charset=utf-8')
-            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-            self.send_header('Pragma', 'no-cache')
-            self.send_header('Expires', '0')
-            self.send_header('Content-Length', str(len(html)))
-            self.end_headers()
-            self.wfile.write(html)
-            self.wfile.flush()
-        elif self.path == '/favicon.ico':
-            self.send_response(204)
-            self.end_headers()
-        else:
-            self.send_error(404)
-
-    def do_POST(self):
-        print(f"-->[POST] Browser submitted form to: {self.path}")
-        if self.path == '/api/verify':
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length).decode('utf-8')
-            try:
-                payload = json.loads(body) if body else {}
-            except json.JSONDecodeError:
-                payload = {}
-
-            lhs = (payload.get('lhs') or '').strip()
-            rhs = (payload.get('rhs') or '').strip()
-
-            if not lhs or not rhs:
-                response = {"verified": False, "steps": [], "error": "Missing lhs or rhs."}
-            else:
-                run = _run_verifier(lhs, rhs)
-                response = {"verified": run["verified"], "steps": run["steps"], "error": run["error"]}
-
-            res = json.dumps(response).encode('utf-8')
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json; charset=utf-8')
-            self.send_header('Content-Length', str(len(res)))
-            self.end_headers()
-            self.wfile.write(res)
-            self.wfile.flush()
-            return
-
-        if self.path == '/verify':
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length).decode('utf-8')
-            params = urllib.parse.parse_qs(post_data)
-            
-            expr1 = params.get('expr1',[''])[0]
-            expr2 = params.get('expr2', [''])[0]
-
-            run = _run_verifier(expr1, expr2)
-            output = run["raw"]
-
-            res_html = f"""<!DOCTYPE html>
-            <html>
-            <body style="font-family: Arial, sans-serif; padding: 2rem; max-width: 800px;">
-                <h2>Verification Result</h2>
-                <pre style="background: #f4f4f4; padding: 1rem; border-radius: 5px; font-size: 16px; white-space: pre-wrap;">{output}</pre>
-                <br>
-                <a href="/" style="padding: 10px 20px; background: #eee; text-decoration: none; color: black; border-radius: 5px;">Try Another</a>
-            </body>
-            </html>
-            """.encode('utf-8')
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html; charset=utf-8')
-            self.send_header('Content-Length', str(len(res_html)))
-            self.end_headers()
-            self.wfile.write(res_html)
-            self.wfile.flush()
-
-if __name__ == "__main__":
-    server = http.server.ThreadingHTTPServer((HOST, PORT), TrigHandler)
-    print(f"Web server successfully running on: http://{HOST}:{PORT}")
-    print("Press Ctrl+C to stop.")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nShutting down server.")
-        server.server_close()
