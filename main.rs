@@ -32,6 +32,8 @@ fn make_rules() -> Vec<Rewrite<Math, ()>> {
         rw!("add-0"; "(+ ?a 0)" => "?a"),
         rw!("add-0-r"; "(+ 0 ?a)" => "?a"),
         rw!("sub-0"; "(- ?a 0)" => "?a"),
+        rw!("sub-add-cancel-l"; "(- (+ ?a ?b) ?a)" => "?b"),
+        rw!("sub-add-cancel-r"; "(- (+ ?a ?b) ?b)" => "?a"),
         rw!("sub-self"; "(- ?a ?a)" => "0"),
         rw!("mul-0"; "(* ?a 0)" => "0"),
         rw!("mul-0-r"; "(* 0 ?a)" => "0"),
@@ -41,6 +43,7 @@ fn make_rules() -> Vec<Rewrite<Math, ()>> {
         rw!("div-self"; "(/ ?a ?a)" => "1"),
         rw!("pow-0"; "(pow ?a 0)" => "1"),
         rw!("pow-1"; "(pow ?a 1)" => "?a"),
+        rw!("pow-4"; "(pow ?a 4)" => "(* (pow ?a 2) (pow ?a 2))"),
         rw!("one-pow"; "(pow 1 ?a)" => "1"),
 
         // --- Negative Normalization ---
@@ -139,6 +142,7 @@ fn make_rules() -> Vec<Rewrite<Math, ()>> {
     // --- Pythagorean Rearrangements ---
     // Allows swapping between forms (e.g. tan^2 <-> sec^2 - 1)
     rules.extend(rw!("tan-sec"; "(pow (sec ?a) 2)" <=> "(+ 1 (pow (tan ?a) 2))"));
+    rules.extend(rw!("sec2-sub-1"; "(- (pow (sec ?a) 2) 1)" <=> "(pow (tan ?a) 2)"));
     rules.extend(rw!("cot-csc"; "(pow (csc ?a) 2)" <=> "(+ 1 (pow (cot ?a) 2))"));
     rules.extend(rw!("sin-cos-sq"; "(pow (sin ?a) 2)" <=> "(- 1 (pow (cos ?a) 2))"));
 

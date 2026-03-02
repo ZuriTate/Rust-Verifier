@@ -630,27 +630,104 @@ class TrigHandler(http.server.BaseHTTPRequestHandler):
       return [{ type: 'atom', value: tokens[pos] }, pos + 1];
     }
 
-    function astToLatex(node) {
+    const PRECEDENCE = {
+      '+': 10,
+      '-': 10,
+      '*': 20,
+      '/': 20,
+      'neg': 30,
+      'pow': 40,
+      'func': 50,
+      'atom': 60,
+    };
+
+    function _needsParens(childNode, parentOp) {
+      if (!childNode || childNode.type !== 'call') return false;
+      const childPrec = PRECEDENCE[childNode.op] ?? PRECEDENCE.atom;
+      const parentPrec = PRECEDENCE[parentOp] ?? PRECEDENCE.atom;
+      return childPrec < parentPrec;
+    }
+
+    function astToLatex(node, parentOp = null) {
       if (!node) return '';
       if (node.type === 'atom') return node.value;
       const op = node.op;
       const c = node.children;
-      if (op.startsWith('Rewrite')) return astToLatex(c[1]);
-      if (['sin', 'cos', 'tan', 'csc', 'sec', 'cot'].includes(op)) return `\\${op}\\left(${astToLatex(c[0])}\\right)`;
-      if (op === 'neg') return `-${astToLatex(c[0])}`;
-      if (op === '+') return `${astToLatex(c[0])} + ${astToLatex(c[1])}`;
-      if (op === '-') return `${astToLatex(c[0])} - ${astToLatex(c[1])}`;
-      if (op === '*') return `${astToLatex(c[0])} \\cdot ${astToLatex(c[1])}`;
-      if (op === '/') return `\\frac{${astToLatex(c[0])}}{${astToLatex(c[1])}}`;
+
+      if (op.startsWith('Rewrite')) return astToLatex(c[1], parentOp);
+
+      const isTrig = ['sin', 'cos', 'tan', 'csc', 'sec', 'cot'].includes(op);
+      if (isTrig) {
+        return `\\${op}\\left(${astToLatex(c[0], 'func')}\\right)`;
+      }
+
+      if (op === 'neg') {
+        const inner = astToLatex(c[0], 'neg');
+        const latex = `-${inner}`;
+        if (parentOp && PRECEDENCE.neg < (PRECEDENCE[parentOp] ?? PRECEDENCE.atom)) {
+          return `\\left(${latex}\\right)`;
+        }
+        return latex;
+      }
+
+      if (op === '+') {
+        const left = astToLatex(c[0], '+');
+        const right = astToLatex(c[1], '+');
+        const latex = `${left} + ${right}`;
+        if (parentOp && PRECEDENCE['+'] < (PRECEDENCE[parentOp] ?? PRECEDENCE.atom)) {
+          return `\\left(${latex}\\right)`;
+        }
+        return latex;
+      }
+
+      if (op === '-') {
+        const left = astToLatex(c[0], '-');
+        const rightRaw = astToLatex(c[1], '-');
+        const right = _needsParens(c[1], '-') ? `\\left(${rightRaw}\\right)` : rightRaw;
+        const latex = `${left} - ${right}`;
+        if (parentOp && PRECEDENCE['-'] < (PRECEDENCE[parentOp] ?? PRECEDENCE.atom)) {
+          return `\\left(${latex}\\right)`;
+        }
+        return latex;
+      }
+
+      if (op === '*') {
+        const leftRaw = astToLatex(c[0], '*');
+        const rightRaw = astToLatex(c[1], '*');
+        const left = _needsParens(c[0], '*') ? `\\left(${leftRaw}\\right)` : leftRaw;
+        const right = _needsParens(c[1], '*') ? `\\left(${rightRaw}\\right)` : rightRaw;
+        const latex = `${left} \\cdot ${right}`;
+        if (parentOp && PRECEDENCE['*'] < (PRECEDENCE[parentOp] ?? PRECEDENCE.atom)) {
+          return `\\left(${latex}\\right)`;
+        }
+        return latex;
+      }
+
+      if (op === '/') {
+        const latex = `\\frac{${astToLatex(c[0], '/')}}{${astToLatex(c[1], '/')}}`;
+        if (parentOp && PRECEDENCE['/'] < (PRECEDENCE[parentOp] ?? PRECEDENCE.atom)) {
+          return `\\left(${latex}\\right)`;
+        }
+        return latex;
+      }
+
       if (op === 'pow') {
         const base = c[0];
-        const exp = astToLatex(c[1]);
+        const exp = astToLatex(c[1], 'pow');
         if (base && base.type === 'call' && ['sin', 'cos', 'tan', 'csc', 'sec', 'cot'].includes(base.op)) {
-          return `\\${base.op}^{${exp}}\\left(${astToLatex(base.children[0])}\\right)`;
+          return `\\${base.op}^{${exp}}\\left(${astToLatex(base.children[0], 'func')}\\right)`;
         }
-        return `{${astToLatex(base)}}^{${exp}}`;
+
+        const baseRaw = astToLatex(base, 'pow');
+        const baseLatex = _needsParens(base, 'pow') ? `\\left(${baseRaw}\\right)` : baseRaw;
+        const latex = `{${baseLatex}}^{${exp}}`;
+        if (parentOp && PRECEDENCE.pow < (PRECEDENCE[parentOp] ?? PRECEDENCE.atom)) {
+          return `\\left(${latex}\\right)`;
+        }
+        return latex;
       }
-      return `\\text{${op}}(${c.map(astToLatex).join(', ')})`;
+
+      return `\\text{${op}}(${c.map(child => astToLatex(child)).join(', ')})`;
     }
 
     function sexprToLatex(sexpr) {
@@ -701,6 +778,7 @@ class TrigHandler(http.server.BaseHTTPRequestHandler):
       'pythag-1': 'Pythagorean identity: sin²(x) + cos²(x) = 1',
       'pythag-1-rev': 'Pythagorean identity: sin²(x) + cos²(x) = 1',
       'tan-sec': 'Identity: sec²(x) = 1 + tan²(x)',
+      'sec2-sub-1': 'Identity: sec²(x) − 1 = tan²(x)',
       'cot-csc': 'Identity: csc²(x) = 1 + cot²(x)',
       'frac-add-cross': 'Add fractions by cross-multiplying',
       'frac-sub-cross': 'Subtract fractions by cross-multiplying',
@@ -712,15 +790,34 @@ class TrigHandler(http.server.BaseHTTPRequestHandler):
       'sq-sum': 'Square of a sum',
       'sum-cubes': 'Sum of cubes factorization',
       'diff-cubes': 'Difference of cubes factorization',
+      'pow-4': 'Rewrite a fourth power as a product of squares',
+      'mul-1': 'Remove multiplication by 1',
+      'mul-1-r': 'Remove multiplication by 1',
+      'dist-left': 'Distribute multiplication over addition',
+      'dist-right': 'Distribute multiplication over addition',
+      'dist-sub-left': 'Distribute multiplication over subtraction',
+      'dist-sub-right': 'Distribute multiplication over subtraction',
       'sec-tan-sq-sin': 'Rationalize (sec(x) − tan(x))²',
       'tan-sec-sq-sin': 'Rationalize (tan(x) − sec(x))²',
       'csc-frac-diff': 'Simplify a special cosecant fraction difference',
     };
 
-    function getFancyRuleName(id) {
-      if (RULE_MAPPING[id]) return RULE_MAPPING[id];
-      if (!id) return '';
-      return id.replace(/-/g, ' ');
+    function getFancyRuleName(ruleId, rewriteDir) {
+      if (!ruleId) return '';
+      let reversed = false;
+
+      let base = ruleId;
+      if (base.endsWith('-rev')) {
+        base = base.slice(0, -4);
+        reversed = true;
+      }
+
+      if (rewriteDir === '<=') {
+        reversed = !reversed;
+      }
+
+      const title = RULE_MAPPING[base] || base.replace(/-/g, ' ');
+      return reversed ? `${title} (reverse direction)` : title;
     }
 
     function renderResult(data) {
@@ -728,11 +825,13 @@ class TrigHandler(http.server.BaseHTTPRequestHandler):
       if (data.verified) {
         let stepsHtml = '';
         data.steps.forEach((expr, i) => {
-          const ruleMatch = expr.match(/\(Rewrite[<=>]+\s+([\w-]+)/);
-          const ruleId = ruleMatch ? ruleMatch[1] : (i === 0 ? 'starting' : '');
-          const ruleName = getFancyRuleName(ruleId);
+          const m = expr.match(/\(Rewrite([<=>]+)\s+([\w-]+)/);
+          const rewriteDir = m ? m[1] : null;
+          const ruleId = m ? m[2] : (i === 0 ? 'starting' : '');
+          const ruleName = getFancyRuleName(ruleId, rewriteDir);
           const delay = (i + 1) * 60;
           const latex = sexprToLatex(expr);
+
           if (i > 0) stepsHtml += `<div class="proof-arrow" style="animation: fadeSlideUp 0.3s ease ${delay - 30}ms forwards; opacity: 0;">↓</div>`;
           stepsHtml += `<div class="proof-step" style="animation-delay: ${delay}ms; opacity: 0;"><div class="proof-header"><div class="proof-label">Step ${i + 1}</div><div class="proof-rule">${ruleName}</div></div><div class="proof-math" id="step-math-${i}"></div></div>`;
           setTimeout(() => {
