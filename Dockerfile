@@ -5,8 +5,8 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
-# Build the release binary
-RUN cargo build --release
+# Clear cache and build
+RUN cargo cache --clear && cargo build --release
 
 # Runtime stage
 FROM python:3.11-slim
