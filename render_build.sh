@@ -31,6 +31,12 @@ if [ -f "${CARGO_HOME}/env" ]; then
   source "${CARGO_HOME}/env"
 fi
 
+# Ensure a default toolchain exists (Render can have rustup without a configured default)
+if command -v rustup >/dev/null 2>&1; then
+  rustup toolchain install stable
+  rustup default stable
+fi
+
 rustc --version
 cargo --version
 
