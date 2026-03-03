@@ -6,7 +6,7 @@ import sys
 app = Flask(__name__)
 
 # Embedded HTML (same as server.py)
-HTML_TEMPLATE = """
+HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="en">
 

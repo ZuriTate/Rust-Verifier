@@ -6,7 +6,7 @@ import sys
 app = Flask(__name__)
 
 # Simplified HTML template with working JavaScript
-HTML_TEMPLATE = """
+HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
