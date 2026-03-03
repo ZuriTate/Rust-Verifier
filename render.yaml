@@ -1,11 +1,11 @@
 services:
-  # Flask Web Service
+  # Flask Web Service - Debug Version
   - type: web
     name: trig-verifier
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python app.py
+    startCommand: python debug_app.py
     autoDeploy: true
     healthCheckPath: /
     envVars:
