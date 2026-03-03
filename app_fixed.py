@@ -426,6 +426,14 @@ HTML_TEMPLATE = r"""
       </button>
     </div>
 
+    <div class="card" id="identity-card" style="margin-top: 20px;">
+      <div class="steps-title" style="margin-bottom: 12px;">Angle identities (reflections / cofunction)</div>
+      <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 14px;">Click any identity to fill the inputs.</div>
+      <div style="overflow-x: auto;">
+        <table id="identity-table" style="width: 100%; border-collapse: collapse; min-width: 720px;"></table>
+      </div>
+    </div>
+
     <div id="results"></div>
   </main>
 
@@ -592,6 +600,115 @@ HTML_TEMPLATE = r"""
     document.getElementById('input-lhs').addEventListener('input', () => updatePreview('input-lhs', 'preview-lhs'));
     document.getElementById('input-rhs').addEventListener('input', () => updatePreview('input-rhs', 'preview-rhs'));
     document.getElementById('verify-btn').addEventListener('click', handleVerify);
+
+    const IDENTITY_ROWS = [
+      { fn: 'sin', entries: [
+        { left: String.raw`\\sin(-\\theta)`, right: String.raw`-\\sin(\\theta)`, fillL: 'sin(-theta)', fillR: '-sin(theta)' },
+        { left: String.raw`\\sin(\\tfrac{\\pi}{2}-\\theta)`, right: String.raw`\\cos(\\theta)`, fillL: 'sin(pi/2 - theta)', fillR: 'cos(theta)' },
+        { left: String.raw`\\sin(\\pi-\\theta)`, right: String.raw`+\\sin(\\theta)`, fillL: 'sin(pi - theta)', fillR: 'sin(theta)' },
+        { left: String.raw`\\sin(\\tfrac{3\\pi}{2}-\\theta)`, right: String.raw`-\\cos(\\theta)`, fillL: 'sin(3pi/2 - theta)', fillR: '-cos(theta)' },
+        { left: String.raw`\\sin(2\\pi-\\theta)`, right: String.raw`-\\sin(\\theta)`, fillL: 'sin(2pi - theta)', fillR: '-sin(theta)' },
+      ]},
+      { fn: 'cos', entries: [
+        { left: String.raw`\\cos(-\\theta)`, right: String.raw`+\\cos(\\theta)`, fillL: 'cos(-theta)', fillR: 'cos(theta)' },
+        { left: String.raw`\\cos(\\tfrac{\\pi}{2}-\\theta)`, right: String.raw`\\sin(\\theta)`, fillL: 'cos(pi/2 - theta)', fillR: 'sin(theta)' },
+        { left: String.raw`\\cos(\\pi-\\theta)`, right: String.raw`-\\cos(\\theta)`, fillL: 'cos(pi - theta)', fillR: '-cos(theta)' },
+        { left: String.raw`\\cos(\\tfrac{3\\pi}{2}-\\theta)`, right: String.raw`-\\sin(\\theta)`, fillL: 'cos(3pi/2 - theta)', fillR: '-sin(theta)' },
+        { left: String.raw`\\cos(2\\pi-\\theta)`, right: String.raw`+\\cos(\\theta)`, fillL: 'cos(2pi - theta)', fillR: 'cos(theta)' },
+      ]},
+      { fn: 'tan', entries: [
+        { left: String.raw`\\tan(-\\theta)`, right: String.raw`-\\tan(\\theta)`, fillL: 'tan(-theta)', fillR: '-tan(theta)' },
+        { left: String.raw`\\tan(\\tfrac{\\pi}{2}-\\theta)`, right: String.raw`\\cot(\\theta)`, fillL: 'tan(pi/2 - theta)', fillR: 'cot(theta)' },
+        { left: String.raw`\\tan(\\pi-\\theta)`, right: String.raw`-\\tan(\\theta)`, fillL: 'tan(pi - theta)', fillR: '-tan(theta)' },
+        { left: String.raw`\\tan(\\tfrac{3\\pi}{2}-\\theta)`, right: String.raw`+\\cot(\\theta)`, fillL: 'tan(3pi/2 - theta)', fillR: 'cot(theta)' },
+        { left: String.raw`\\tan(2\\pi-\\theta)`, right: String.raw`-\\tan(\\theta)`, fillL: 'tan(2pi - theta)', fillR: '-tan(theta)' },
+      ]},
+      { fn: 'csc', entries: [
+        { left: String.raw`\\csc(-\\theta)`, right: String.raw`-\\csc(\\theta)`, fillL: 'csc(-theta)', fillR: '-csc(theta)' },
+        { left: String.raw`\\csc(\\tfrac{\\pi}{2}-\\theta)`, right: String.raw`\\sec(\\theta)`, fillL: 'csc(pi/2 - theta)', fillR: 'sec(theta)' },
+        { left: String.raw`\\csc(\\pi-\\theta)`, right: String.raw`+\\csc(\\theta)`, fillL: 'csc(pi - theta)', fillR: 'csc(theta)' },
+        { left: String.raw`\\csc(\\tfrac{3\\pi}{2}-\\theta)`, right: String.raw`-\\sec(\\theta)`, fillL: 'csc(3pi/2 - theta)', fillR: '-sec(theta)' },
+        { left: String.raw`\\csc(2\\pi-\\theta)`, right: String.raw`-\\csc(\\theta)`, fillL: 'csc(2pi - theta)', fillR: '-csc(theta)' },
+      ]},
+      { fn: 'sec', entries: [
+        { left: String.raw`\\sec(-\\theta)`, right: String.raw`+\\sec(\\theta)`, fillL: 'sec(-theta)', fillR: 'sec(theta)' },
+        { left: String.raw`\\sec(\\tfrac{\\pi}{2}-\\theta)`, right: String.raw`\\csc(\\theta)`, fillL: 'sec(pi/2 - theta)', fillR: 'csc(theta)' },
+        { left: String.raw`\\sec(\\pi-\\theta)`, right: String.raw`-\\sec(\\theta)`, fillL: 'sec(pi - theta)', fillR: '-sec(theta)' },
+        { left: String.raw`\\sec(\\tfrac{3\\pi}{2}-\\theta)`, right: String.raw`-\\csc(\\theta)`, fillL: 'sec(3pi/2 - theta)', fillR: '-csc(theta)' },
+        { left: String.raw`\\sec(2\\pi-\\theta)`, right: String.raw`+\\sec(\\theta)`, fillL: 'sec(2pi - theta)', fillR: 'sec(theta)' },
+      ]},
+      { fn: 'cot', entries: [
+        { left: String.raw`\\cot(-\\theta)`, right: String.raw`-\\cot(\\theta)`, fillL: 'cot(-theta)', fillR: '-cot(theta)' },
+        { left: String.raw`\\cot(\\tfrac{\\pi}{2}-\\theta)`, right: String.raw`\\tan(\\theta)`, fillL: 'cot(pi/2 - theta)', fillR: 'tan(theta)' },
+        { left: String.raw`\\cot(\\pi-\\theta)`, right: String.raw`-\\cot(\\theta)`, fillL: 'cot(pi - theta)', fillR: '-cot(theta)' },
+        { left: String.raw`\\cot(\\tfrac{3\\pi}{2}-\\theta)`, right: String.raw`+\\tan(\\theta)`, fillL: 'cot(3pi/2 - theta)', fillR: 'tan(theta)' },
+        { left: String.raw`\\cot(2\\pi-\\theta)`, right: String.raw`-\\cot(\\theta)`, fillL: 'cot(2pi - theta)', fillR: '-cot(theta)' },
+      ]},
+    ];
+
+    function renderIdentityTable() {
+      const table = document.getElementById('identity-table');
+      if (!table) return;
+
+      const headers = [
+        'Function',
+        String.raw`\\alpha=0`,
+        String.raw`\\alpha=\\tfrac{\\pi}{2}`,
+        String.raw`\\alpha=\\pi`,
+        String.raw`\\alpha=\\tfrac{3\\pi}{2}`,
+        String.raw`\\alpha=2\\pi`,
+      ];
+
+      let html = '<thead><tr>';
+      headers.forEach((h, i) => {
+        const align = i === 0 ? 'left' : 'center';
+        html += `<th style="text-align:${align}; padding:10px 12px; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-size: 0.85rem;">${h}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+
+      IDENTITY_ROWS.forEach((row, rIdx) => {
+        html += `<tr>`;
+        html += `<td style="padding:10px 12px; border-bottom: 1px solid var(--border); color: var(--text-primary); font-family: var(--font-mono);">${row.fn}</td>`;
+        row.entries.forEach((cell, cIdx) => {
+          html += `<td class="ident-cell" data-r="${rIdx}" data-c="${cIdx}" style="padding:10px 12px; border-bottom: 1px solid var(--border); cursor:pointer;">` +
+                  `<div class="ident-l" style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 6px;"></div>` +
+                  `<div class="ident-eq" style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 6px;">=</div>` +
+                  `<div class="ident-r" style="color: var(--text-primary);"></div>` +
+                  `</td>`;
+        });
+        html += `</tr>`;
+      });
+
+      html += '</tbody>';
+      table.innerHTML = html;
+
+      // Render KaTeX into cells and attach click-to-fill
+      const all = table.querySelectorAll('.ident-cell');
+      all.forEach((td) => {
+        const r = parseInt(td.getAttribute('data-r'), 10);
+        const c = parseInt(td.getAttribute('data-c'), 10);
+        const cell = IDENTITY_ROWS[r].entries[c];
+
+        const elL = td.querySelector('.ident-l');
+        const elR = td.querySelector('.ident-r');
+        try {
+          katex.render(cell.left, elL, { throwOnError: false, displayMode: false });
+          katex.render(cell.right, elR, { throwOnError: false, displayMode: false });
+        } catch {
+          elL.textContent = cell.fillL;
+          elR.textContent = cell.fillR;
+        }
+
+        td.addEventListener('click', () => {
+          // Fill inputs (natural mode expressions)
+          document.getElementById('input-lhs').value = cell.fillL;
+          document.getElementById('input-rhs').value = cell.fillR;
+          updatePreview('input-lhs', 'preview-lhs');
+          updatePreview('input-rhs', 'preview-rhs');
+          document.getElementById('results').innerHTML = '';
+        });
+      });
+    }
     
     // Mode toggle
     document.querySelectorAll('#mode-toggle button').forEach(btn => {
@@ -616,6 +733,8 @@ HTML_TEMPLATE = r"""
         updatePreview('input-rhs', 'preview-rhs');
       });
     });
+
+    renderIdentityTable();
   </script>
 </body>
 </html>
@@ -650,9 +769,17 @@ def run_verifier(expr1: str, expr2: str):
                 for line in stdout.split('\n'):
                     line = line.strip()
                     if line.startswith("Start:"):
-                        steps.append(line)
+                        payload = line.split(':', 1)[1].strip() if ':' in line else ''
+                        if payload:
+                            steps.append(f"Start: {payload}")
                     elif line.startswith("Step "):
-                        steps.append(line)
+                        # Keep full line only if it has a payload after ':'
+                        if ':' in line and line.split(':', 1)[1].strip():
+                            steps.append(line)
+                    elif line.startswith("Result:"):
+                        payload = line.split(':', 1)[1].strip() if ':' in line else ''
+                        if payload:
+                            steps.append(f"Result: {payload}")
                 
                 error = None
                 if not verified:
