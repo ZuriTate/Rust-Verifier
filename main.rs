@@ -163,6 +163,42 @@ fn make_rules() -> Vec<Rewrite<Math, ()>> {
         "(- (/ (csc ?a) (+ 1 (csc ?a))) (/ (csc ?a) (- 1 (csc ?a))))" <=> "(* 2 (pow (sec ?a) 2))"
     ));
 
+    // --- Angle / Reflection / Cofunction Identities ---
+    rules.extend(rw!("sin-odd"; "(sin (neg ?t))" <=> "(neg (sin ?t))"));
+    rules.extend(rw!("cos-even"; "(cos (neg ?t))" <=> "(cos ?t)"));
+    rules.extend(rw!("tan-odd"; "(tan (neg ?t))" <=> "(neg (tan ?t))"));
+    rules.extend(rw!("csc-odd"; "(csc (neg ?t))" <=> "(neg (csc ?t))"));
+    rules.extend(rw!("sec-even"; "(sec (neg ?t))" <=> "(sec ?t)"));
+    rules.extend(rw!("cot-odd"; "(cot (neg ?t))" <=> "(neg (cot ?t))"));
+
+    rules.extend(rw!("sin-pi2-sub"; "(sin (- (/ pi 2) ?t))" <=> "(cos ?t)"));
+    rules.extend(rw!("cos-pi2-sub"; "(cos (- (/ pi 2) ?t))" <=> "(sin ?t)"));
+    rules.extend(rw!("tan-pi2-sub"; "(tan (- (/ pi 2) ?t))" <=> "(cot ?t)"));
+    rules.extend(rw!("csc-pi2-sub"; "(csc (- (/ pi 2) ?t))" <=> "(sec ?t)"));
+    rules.extend(rw!("sec-pi2-sub"; "(sec (- (/ pi 2) ?t))" <=> "(csc ?t)"));
+    rules.extend(rw!("cot-pi2-sub"; "(cot (- (/ pi 2) ?t))" <=> "(tan ?t)"));
+
+    rules.extend(rw!("sin-pi-sub"; "(sin (- pi ?t))" <=> "(sin ?t)"));
+    rules.extend(rw!("cos-pi-sub"; "(cos (- pi ?t))" <=> "(neg (cos ?t))"));
+    rules.extend(rw!("tan-pi-sub"; "(tan (- pi ?t))" <=> "(neg (tan ?t))"));
+    rules.extend(rw!("csc-pi-sub"; "(csc (- pi ?t))" <=> "(csc ?t)"));
+    rules.extend(rw!("sec-pi-sub"; "(sec (- pi ?t))" <=> "(neg (sec ?t))"));
+    rules.extend(rw!("cot-pi-sub"; "(cot (- pi ?t))" <=> "(neg (cot ?t))"));
+
+    rules.extend(rw!("sin-3pi2-sub"; "(sin (- (/ (* 3 pi) 2) ?t))" <=> "(neg (cos ?t))"));
+    rules.extend(rw!("cos-3pi2-sub"; "(cos (- (/ (* 3 pi) 2) ?t))" <=> "(neg (sin ?t))"));
+    rules.extend(rw!("tan-3pi2-sub"; "(tan (- (/ (* 3 pi) 2) ?t))" <=> "(cot ?t)"));
+    rules.extend(rw!("csc-3pi2-sub"; "(csc (- (/ (* 3 pi) 2) ?t))" <=> "(neg (sec ?t))"));
+    rules.extend(rw!("sec-3pi2-sub"; "(sec (- (/ (* 3 pi) 2) ?t))" <=> "(neg (csc ?t))"));
+    rules.extend(rw!("cot-3pi2-sub"; "(cot (- (/ (* 3 pi) 2) ?t))" <=> "(tan ?t)"));
+
+    rules.extend(rw!("sin-2pi-sub"; "(sin (- (* 2 pi) ?t))" <=> "(neg (sin ?t))"));
+    rules.extend(rw!("cos-2pi-sub"; "(cos (- (* 2 pi) ?t))" <=> "(cos ?t)"));
+    rules.extend(rw!("tan-2pi-sub"; "(tan (- (* 2 pi) ?t))" <=> "(neg (tan ?t))"));
+    rules.extend(rw!("csc-2pi-sub"; "(csc (- (* 2 pi) ?t))" <=> "(neg (csc ?t))"));
+    rules.extend(rw!("sec-2pi-sub"; "(sec (- (* 2 pi) ?t))" <=> "(sec ?t)"));
+    rules.extend(rw!("cot-2pi-sub"; "(cot (- (* 2 pi) ?t))" <=> "(neg (cot ?t))"));
+
     rules
 }
 
@@ -185,6 +221,10 @@ fn verify_identity(start_expr: &RecExpr<Math>, end_expr: &RecExpr<Math>) -> Opti
             }
         })
         .run(&rules);
+
+    if env::var("VERBOSE").ok().as_deref() == Some("1") {
+        eprintln!("[verifier] iterations={} egraph_nodes={} egraph_classes={}", runner.iterations.len(), runner.egraph.total_size(), runner.egraph.number_of_classes());
+    }
 
     let start_id = runner.egraph.find(*runner.roots.get(0).unwrap());
     let end_id = runner.egraph.find(*runner.roots.get(1).unwrap());
@@ -213,12 +253,16 @@ fn main() {
         let steps = explanation.get_flat_strings();
         for (i, step) in steps.iter().enumerate() {
             if i == 0 {
-                println!("Start : {}", step);
+                println!("Start: {}", step);
             } else {
                 // Formatting for readability: display (neg x) as (- 0 x)
                 let s = step.replace("(neg ", "(- 0 "); 
                 println!("Step {}: {}", i, s);
             }
+        }
+
+        if let Some(last) = steps.last() {
+            println!("Result: {}", last);
         }
     } else {
         println!("❌ Could not verify the identity. It may require more steps or rules.");
