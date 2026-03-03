@@ -4,7 +4,7 @@ services:
     name: trig-verifier
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: bash render_build.sh && pip install -r requirements.txt
     startCommand: python app_fixed.py
     autoDeploy: true
     healthCheckPath: /
