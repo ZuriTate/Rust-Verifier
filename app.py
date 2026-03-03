@@ -434,7 +434,10 @@ HTML_TEMPLATE = r"""
     function tokenize(input) {
       const tokens = [];
       let i = 0;
-      const s = input.replace(/\s+/g, ' ').trim();
+      const s = input
+        .replace(/\u03c0/g, 'pi')
+        .replace(/\s+/g, ' ')
+        .trim();
       while (i < s.length) {
         if (s[i] === ' ') { i++; continue; }
         if ('()+*-/^'.includes(s[i])) { tokens.push({ type: 'op', value: s[i] }); i++; continue; }
@@ -453,7 +456,27 @@ HTML_TEMPLATE = r"""
         }
         i++;
       }
-      return tokens;
+
+      // Insert implicit multiplication (e.g., 2pi, 3(x+1), xpi, )(
+      const out = [];
+      function isValueTok(t) {
+        return t && (t.type === 'num' || t.type === 'var' || t.type === 'func' || (t.type === 'op' && t.value === ')'));
+      }
+      function startsValueTok(t) {
+        return t && (t.type === 'num' || t.type === 'var' || t.type === 'func' || (t.type === 'op' && t.value === '('));
+      }
+      for (let j = 0; j < tokens.length; j++) {
+        const a = tokens[j];
+        const b = tokens[j + 1];
+        out.push(a);
+        if (a && b && isValueTok(a) && startsValueTok(b)) {
+          // Don't insert between func and its argument when argument is immediately after and is '(' (sin(x))
+          if (!(a.type === 'func' && b.type === 'op' && b.value === '(')) {
+            out.push({ type: 'op', value: '*' });
+          }
+        }
+      }
+      return out;
     }
 
     function parseExpr(tokens, pos) {
@@ -517,7 +540,11 @@ HTML_TEMPLATE = r"""
     function parseAtom(tokens, pos) {
       if (pos >= tokens.length) return ['?', pos];
       if (tokens[pos].type === 'num') return [tokens[pos].value, pos + 1];
-      if (tokens[pos].type === 'var') return [tokens[pos].value, pos + 1];
+      if (tokens[pos].type === 'var') {
+        // Support pi as a symbolic constant
+        if (tokens[pos].value === 'pi') return ['pi', pos + 1];
+        return [tokens[pos].value, pos + 1];
+      }
       if (tokens[pos].type === 'op' && tokens[pos].value === '(') {
         let [expr, p] = parseExpr(tokens, pos + 1);
         if (p < tokens.length && tokens[p].value === ')') p++;
@@ -700,7 +727,12 @@ HTML_TEMPLATE = r"""
 
       const isTrig = ['sin', 'cos', 'tan', 'csc', 'sec', 'cot'].includes(op);
       if (isTrig) {
-        return `\\${op}\\left(${astToLatex(c[0], 'func')}\\right)`;
+        const innerRaw = astToLatex(c[0], 'func');
+        // Avoid double-wrapping like \sin\left(\left( ... \right)\right)
+        const inner = (innerRaw.startsWith('\\left(') && innerRaw.endsWith('\\right)'))
+          ? innerRaw.slice('\\left('.length, innerRaw.length - '\\right)'.length)
+          : innerRaw;
+        return `\\${op}\\left(${inner}\\right)`;
       }
 
       if (op === 'neg') {
@@ -776,7 +808,48 @@ HTML_TEMPLATE = r"""
       if (!sexpr) return '';
       try {
         const tokens = tokenizeSexpr(sexpr);
-        const [ast] = parseSexprAST(tokens, 0);
+        let [ast] = parseSexprAST(tokens, 0);
+
+        // Display-only simplification (pretty printing)
+        function simplify(node) {
+          if (!node) return node;
+          if (node.type === 'atom') return node;
+
+          const op = node.op;
+          const kids = (node.children || []).map(simplify);
+
+          // Strip Rewrite wrapper
+          if (op === 'Rewrite=>' || op === 'Rewrite<=' || op === 'Rewrite<=>') {
+            return kids[1] || null;
+          }
+
+          // 1/(1/x) -> x
+          if (op === '/' && kids.length === 2) {
+            const num = kids[0];
+            const den = kids[1];
+            if (num && num.type === 'atom' && num.value === '1' && den && den.type === 'call' && den.op === '/' && den.children?.length === 2) {
+              const denNum = den.children[0];
+              const denDen = den.children[1];
+              if (denNum && denNum.type === 'atom' && denNum.value === '1') {
+                return denDen;
+              }
+            }
+
+            // 1/sin(x) -> csc(x), 1/cos(x) -> sec(x)
+            if (num && num.type === 'atom' && num.value === '1' && den && den.type === 'call') {
+              if (den.op === 'sin') return { type: 'call', op: 'csc', children: den.children };
+              if (den.op === 'cos') return { type: 'call', op: 'sec', children: den.children };
+              if (den.op === 'tan') return { type: 'call', op: 'cot', children: den.children };
+              if (den.op === 'csc') return { type: 'call', op: 'sin', children: den.children };
+              if (den.op === 'sec') return { type: 'call', op: 'cos', children: den.children };
+              if (den.op === 'cot') return { type: 'call', op: 'tan', children: den.children };
+            }
+          }
+
+          return { type: 'call', op, children: kids };
+        }
+
+        ast = simplify(ast);
         return astToLatex(ast);
       } catch { return sexpr; }
     }
@@ -883,6 +956,40 @@ HTML_TEMPLATE = r"""
       'sec-tan-sq-sin': 'Rationalize (sec(x) - tan(x))^2',
       'tan-sec-sq-sin': 'Rationalize (tan(x) - sec(x))^2',
       'csc-frac-diff': 'Simplify a special cosecant fraction difference',
+
+      'sin-odd': 'Odd symmetry: sin(-x) = -sin(x)',
+      'cos-even': 'Even symmetry: cos(-x) = cos(x)',
+      'tan-odd': 'Odd symmetry: tan(-x) = -tan(x)',
+      'csc-odd': 'Odd symmetry: csc(-x) = -csc(x)',
+      'sec-even': 'Even symmetry: sec(-x) = sec(x)',
+      'cot-odd': 'Odd symmetry: cot(-x) = -cot(x)',
+
+      'sin-pi2-sub': 'Cofunction identity: sin(pi/2 - x) = cos(x)',
+      'cos-pi2-sub': 'Cofunction identity: cos(pi/2 - x) = sin(x)',
+      'tan-pi2-sub': 'Cofunction identity: tan(pi/2 - x) = cot(x)',
+      'csc-pi2-sub': 'Cofunction identity: csc(pi/2 - x) = sec(x)',
+      'sec-pi2-sub': 'Cofunction identity: sec(pi/2 - x) = csc(x)',
+      'cot-pi2-sub': 'Cofunction identity: cot(pi/2 - x) = tan(x)',
+
+      'sin-pi-sub': 'Reflection identity: sin(pi - x) = sin(x)',
+      'cos-pi-sub': 'Reflection identity: cos(pi - x) = -cos(x)',
+      'tan-pi-sub': 'Reflection identity: tan(pi - x) = -tan(x)',
+      'csc-pi-sub': 'Reflection identity: csc(pi - x) = csc(x)',
+      'sec-pi-sub': 'Reflection identity: sec(pi - x) = -sec(x)',
+      'cot-pi-sub': 'Reflection identity: cot(pi - x) = -cot(x)',
+
+      'sin-3pi2-sub': 'Shift identity: sin(3pi/2 - x) = -cos(x)',
+      'cos-3pi2-sub': 'Shift identity: cos(3pi/2 - x) = -sin(x)',
+      'tan-3pi2-sub': 'Shift identity: tan(3pi/2 - x) = cot(x)',
+      'csc-3pi2-sub': 'Shift identity: csc(3pi/2 - x) = -sec(x)',
+      'sec-3pi2-sub': 'Shift identity: sec(3pi/2 - x) = -csc(x)',
+      'cot-3pi2-sub': 'Shift identity: cot(3pi/2 - x) = tan(x)',
+
+      'sin-2pi-sub': 'Periodicity/reflection: sin(2pi - x) = -sin(x)',
+      'cos-2pi-sub': 'Periodicity/reflection: cos(2pi - x) = cos(x)',
+      'tan-2pi-sub': 'Periodicity/reflection: tan(2pi - x) = -tan(x)',
+      'csc-2pi-sub': 'Periodicity/reflection: csc(2pi - x) = -csc(x)',
+      'sec-2pi-sub': 'Periodicity/reflection: sec(2pi - x) = sec(x)',
     };
 
     function getFancyRuleName(ruleId, rewriteDir) {
@@ -908,17 +1015,9 @@ HTML_TEMPLATE = r"""
       if (data.verified) {
         let stepsHtml = '';
 
-        const filtered = [];
-        let prevCanon = null;
-        for (let i = 0; i < data.steps.length; i++) {
-          const expr = data.steps[i];
-          const canon = canonicalizeSexpr(expr);
-          if (prevCanon !== null && canon === prevCanon) continue;
-          filtered.push(expr);
-          prevCanon = canon;
-        }
+        const shown = Array.isArray(data.steps) ? data.steps : [];
 
-        filtered.forEach((expr, i) => {
+        shown.forEach((expr, i) => {
           const m = expr.match(/\(Rewrite([<=>]+)\s+([\w-]+)/);
           const rewriteDir = m ? m[1] : null;
           const ruleId = m ? m[2] : (i === 0 ? 'starting' : '');
@@ -933,7 +1032,7 @@ HTML_TEMPLATE = r"""
             if (el) katex.render(latex, el, { throwOnError: false, displayMode: true });
           }, delay + 50);
         });
-        container.innerHTML = `<div class="result"><div class="result-banner success"><span class="icon">&check;</span><div class="meta"><span>Identity Verified</span><small>${filtered.length} steps</small></div></div><div class="steps-title">Proof Derivation</div><div class="proof-container">${stepsHtml}</div></div>`;
+        container.innerHTML = `<div class="result"><div class="result-banner success"><span class="icon">&check;</span><div class="meta"><span>Identity Verified</span><small>${shown.length} steps</small></div></div><div class="steps-title">Proof Derivation</div><div class="proof-container">${stepsHtml}</div></div>`;
       } else {
         const msg = (data.error || 'The identity could not be proven within search limits.').replace(/</g, '&lt;');
         container.innerHTML = `<div class="result"><div class="result-banner failure"><span class="icon">&times;</span><div class="meta"><span>Could Not Verify</span><small>${msg}</small></div></div></div>`;
@@ -991,14 +1090,19 @@ def _parse_steps(stdout: str):
         line = raw.strip()
         if not line:
             continue
-        if line.startswith("Start"):
-            parts = line.split(":", 1)
-            if len(parts) == 2:
-                steps.append(parts[1].strip())
+        if line.startswith("Start:"):
+            # Keep the full expression payload (do not strip Rewrite markers inside)
+            payload = line.split(":", 1)[1].strip()
+            if payload:
+                steps.append(payload)
         elif line.startswith("Step "):
-            parts = line.split(":", 1)
-            if len(parts) == 2:
-                steps.append(parts[1].strip())
+            payload = line.split(":", 1)[1].strip() if ":" in line else ""
+            if payload:
+                steps.append(payload)
+        elif line.startswith("Result:"):
+            payload = line.split(":", 1)[1].strip()
+            if payload:
+                steps.append(payload)
     return steps
 
 def run_verifier(expr1: str, expr2: str):
@@ -1007,8 +1111,11 @@ def run_verifier(expr1: str, expr2: str):
     
     if exe_path:
         try:
+            cmd = [exe_path, expr1, expr2]
+            if os.environ.get("VERBOSE") == "1":
+                cmd = [exe_path, "--verbose", expr1, expr2]
             result = subprocess.run(
-                [exe_path, expr1, expr2],
+                cmd,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

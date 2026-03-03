@@ -223,7 +223,7 @@ fn verify_identity(start_expr: &RecExpr<Math>, end_expr: &RecExpr<Math>) -> Opti
         .run(&rules);
 
     if env::var("VERBOSE").ok().as_deref() == Some("1") {
-        eprintln!("[verifier] iterations={} egraph_nodes={} egraph_classes={}", runner.iterations.len(), runner.egraph.total_size(), runner.egraph.number_of_classes());
+        eprintln!("[verifier] rules={} iterations={} egraph_nodes={} egraph_classes={}", rules.len(), runner.iterations.len(), runner.egraph.total_size(), runner.egraph.number_of_classes());
     }
 
     let start_id = runner.egraph.find(*runner.roots.get(0).unwrap());
@@ -237,19 +237,33 @@ fn verify_identity(start_expr: &RecExpr<Math>, end_expr: &RecExpr<Math>) -> Opti
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 3 {
-        eprintln!("Usage: trig_verifier \"<expr1>\" \"<expr2>\"");
+    let args: Vec<String> = env::args().skip(1).collect();
+    let mut verbose = false;
+    let mut positionals: Vec<String> = Vec::new();
+    for a in args {
+        if a == "--verbose" || a == "-v" {
+            verbose = true;
+        } else {
+            positionals.push(a);
+        }
+    }
+
+    if verbose {
+        env::set_var("VERBOSE", "1");
+    }
+
+    if positionals.len() != 2 {
+        eprintln!("Usage: trig_verifier [--verbose|-v] \"<expr1>\" \"<expr2>\"");
         std::process::exit(1);
     }
 
-    let start_expr: RecExpr<Math> = args[1].parse().expect("Failed to parse Expr 1");
-    let end_expr: RecExpr<Math> = args[2].parse().expect("Failed to parse Expr 2");
+    let start_expr: RecExpr<Math> = positionals[0].parse().expect("Failed to parse Expr 1");
+    let end_expr: RecExpr<Math> = positionals[1].parse().expect("Failed to parse Expr 2");
 
     if let Some(mut explanation) = verify_identity(&start_expr, &end_expr) {
         println!("✅ Identity Verified Successfully!\n");
         println!("Shortest sequence of steps:");
-        
+
         let steps = explanation.get_flat_strings();
         for (i, step) in steps.iter().enumerate() {
             if i == 0 {
@@ -274,6 +288,7 @@ fn main() {
 mod tests {
     use super::*;
 
+    // ... (unchanged code)
     #[test]
     fn verifies_tan_sec_square_rationalization() {
         let start_expr: RecExpr<Math> = "(pow (- (tan x) (sec x)) 2)".parse().unwrap();
